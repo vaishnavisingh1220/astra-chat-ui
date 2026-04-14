@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useState, useEffect } from "react";
 import Message from "./Message";
 import ChatInput from "./ChatInput";
@@ -10,7 +11,7 @@ export type MessageType = {
   id: number;
   text: string;
   sender: "user" | "bot";
-  createdAt?: Date;
+  createdAt: Date;
 };
 
 export default function ChatWindow() {
@@ -20,6 +21,7 @@ export default function ChatWindow() {
 
   const [chats, setChats] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // 🌙 Dark mode
   useEffect(() => {
@@ -32,70 +34,79 @@ export default function ChatWindow() {
 
   // 💬 Send message
   const sendMessage = async (text: string) => {
-    const userMsg = {
-      id: Date.now(),
-      text,
-      sender: "user",
+  const userMsg: MessageType = {
+    id: Date.now(),
+    text,
+    sender: "user",
+    createdAt: new Date(),
+  };
+
+  setMessages((prev: MessageType[]) => [...prev, userMsg]);
+  setIsTyping(true);
+
+  try {
+    // ⏳ Delay for animation (3 seconds)
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: text }),
+    });
+
+    if (!res.ok) throw new Error("API failed");
+
+    const data = await res.json();
+
+    const botMsg: MessageType = {
+      id: Date.now() + 1,
+      text: data.reply,
+      sender: "bot",
       createdAt: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setIsTyping(true);
+    setMessages((prev: MessageType[]) => [...prev, botMsg]);
 
+    // 🔔 Play sound safely
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: text }),
-      });
+      audioRef.current?.play();
+    } catch {}
 
-      if (!res.ok) throw new Error("API failed");
+    // 💾 Save chat
+    setChats((prev: any[]) => {
+      if (activeChatId) {
+        return prev.map((chat) =>
+          chat.id === activeChatId
+            ? { ...chat, messages: [...chat.messages, userMsg, botMsg] }
+            : chat
+        );
+      }
 
-      const data = await res.json();
-
-      const botMsg = {
-        id: Date.now() + 1,
-        text: data.reply,
-        sender: "bot",
-        createdAt: new Date(),
+      const newChat = {
+        id: Date.now(),
+        title: text.slice(0, 25),
+        messages: [userMsg, botMsg],
       };
 
-      setMessages((prev) => [...prev, botMsg]);
+      setActiveChatId(newChat.id);
+      return [newChat, ...prev];
+    });
 
-      // 💾 Save chat
-      setChats((prev) => {
-        if (activeChatId) {
-          return prev.map((chat) =>
-            chat.id === activeChatId
-              ? { ...chat, messages: [...chat.messages, userMsg, botMsg] }
-              : chat
-          );
-        }
+  } catch (error) {
+    const errorMsg: MessageType = {
+      id: Date.now() + 2,
+      text: "⚠️ Something went wrong. Try again.",
+      sender: "bot",
+      createdAt: new Date(),
+    };
 
-        const newChat = {
-          id: Date.now(),
-          title: text.slice(0, 25),
-          messages: [userMsg, botMsg],
-        };
-
-        setActiveChatId(newChat.id);
-        return [newChat, ...prev];
-      });
-    } catch (error) {
-      const errorMsg = {
-        id: Date.now() + 2,
-        text: "⚠️ Something went wrong. Try again.",
-        sender: "bot",
-        createdAt: new Date(),
-      };
-
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setIsTyping(false);
-    }
-  };
+    setMessages((prev: MessageType[]) => [...prev, errorMsg]);
+  } finally {
+    setIsTyping(false);
+  }
+};
 
   const handleNewChat = () => {
     setMessages([]);
@@ -119,6 +130,8 @@ export default function ChatWindow() {
         setMessages={setMessages}
         setActiveChatId={setActiveChatId}
       />
+
+      <audio ref={audioRef} src="/notification.mp3" />
 
       {/* Main */}
       <div
