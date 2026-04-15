@@ -29,19 +29,25 @@ export default function ChatWindow() {
     else document.documentElement.classList.remove("dark");
   }, [darkMode]);
 
-  // 📚 Load chats from DB
+  // 📚 Load chats
   const loadChats = async () => {
-    const res = await fetch("/api/chats");
-    const data = await res.json();
-    setChats(data);
+    try {
+      const res = await fetch("/api/chats");
+      const data = await res.json();
+      setChats(data);
+    } catch (err) {
+      console.error("Failed to load chats", err);
+    }
   };
 
   useEffect(() => {
     loadChats();
   }, []);
 
-  // 💬 Send message (CONNECTED TO DB)
+  // 💬 Send message
   const sendMessage = async (text: string) => {
+    if (!text.trim()) return;
+
     const userMsg: MessageType = {
       id: Date.now(),
       text,
@@ -53,60 +59,56 @@ export default function ChatWindow() {
     setIsTyping(true);
 
     try {
-      // ⏳ Delay for UX
-      await new Promise((r) => setTimeout(r, 1500));
-
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ message: text, chatId }),
+        body: JSON.stringify({ message: text, chatId }), // ✅ IMPORTANT
       });
 
       if (!res.ok) throw new Error("API failed");
 
       const data = await res.json();
 
-      // 🔑 Save chatId from DB
       setChatId(data.chatId);
 
       const botMsg: MessageType = {
         id: Date.now() + 1,
-        text: data.reply,
+        text: data.reply || "⚠️ No response",
         sender: "bot",
         createdAt: new Date(),
       };
 
       setMessages((prev) => [...prev, botMsg]);
 
-      // 🔔 Sound
       audioRef.current?.play().catch(() => {});
 
-      // 🔄 Refresh sidebar chats
-      loadChats();
+      // 🔥 reload chats
+      await loadChats();
 
     } catch (error) {
-      const errorMsg: MessageType = {
-        id: Date.now(),
-        text: "⚠️ Something went wrong. Try again.",
-        sender: "bot",
-        createdAt: new Date(),
-      };
+      console.error(error);
 
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text: "⚠️ Failed to get response",
+          sender: "bot",
+          createdAt: new Date(),
+        },
+      ]);
     } finally {
       setIsTyping(false);
     }
   };
 
-  // 🆕 New chat
   const handleNewChat = () => {
     setMessages([]);
     setChatId(null);
   };
 
-  // 🧹 Clear messages (only UI)
   const handleClear = () => {
     setMessages([]);
   };
@@ -124,7 +126,7 @@ export default function ChatWindow() {
         setChatId={setChatId}
       />
 
-      {/* 🔔 Audio */}
+      {/* Sound */}
       <audio ref={audioRef}>
         <source src="/notification.mp3" type="audio/mpeg" />
       </audio>
@@ -158,7 +160,6 @@ export default function ChatWindow() {
           </div>
         ) : (
           <>
-            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
               {messages.map((msg) => (
                 <Message key={msg.id} msg={msg} />
@@ -167,7 +168,6 @@ export default function ChatWindow() {
               {isTyping && <TypingIndicator />}
             </div>
 
-            {/* Input */}
             <div className="px-6 pb-6">
               <ChatInput onSend={sendMessage} />
             </div>
