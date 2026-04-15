@@ -1,7 +1,6 @@
 "use client";
 
-import { useRef } from "react";
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import Message from "./Message";
 import ChatInput from "./ChatInput";
 import Sidebar from "./Sidebar";
@@ -20,106 +19,100 @@ export default function ChatWindow() {
   const [isTyping, setIsTyping] = useState(false);
 
   const [chats, setChats] = useState<any[]>([]);
-  const [activeChatId, setActiveChatId] = useState<number | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // 🌙 Dark mode
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    if (darkMode) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
   }, [darkMode]);
 
-  // 💬 Send message
-  const sendMessage = async (text: string) => {
-  const userMsg: MessageType = {
-    id: Date.now(),
-    text,
-    sender: "user",
-    createdAt: new Date(),
+  // 📚 Load chats from DB
+  const loadChats = async () => {
+    const res = await fetch("/api/chats");
+    const data = await res.json();
+    setChats(data);
   };
 
-  setMessages((prev: MessageType[]) => [...prev, userMsg]);
-  setIsTyping(true);
+  useEffect(() => {
+    loadChats();
+  }, []);
 
-  try {
-    // ⏳ Delay for animation (3 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ message: text }),
-    });
-
-    if (!res.ok) throw new Error("API failed");
-
-    const data = await res.json();
-
-    const botMsg: MessageType = {
-      id: Date.now() + 1,
-      text: data.reply,
-      sender: "bot",
+  // 💬 Send message (CONNECTED TO DB)
+  const sendMessage = async (text: string) => {
+    const userMsg: MessageType = {
+      id: Date.now(),
+      text,
+      sender: "user",
       createdAt: new Date(),
     };
 
-    setMessages((prev: MessageType[]) => [...prev, botMsg]);
+    setMessages((prev) => [...prev, userMsg]);
+    setIsTyping(true);
 
-    // 🔔 Play sound safely
     try {
-      audioRef.current?.play();
-    } catch {}
+      // ⏳ Delay for UX
+      await new Promise((r) => setTimeout(r, 1500));
 
-    // 💾 Save chat
-    setChats((prev: any[]) => {
-      if (activeChatId) {
-        return prev.map((chat) =>
-          chat.id === activeChatId
-            ? { ...chat, messages: [...chat.messages, userMsg, botMsg] }
-            : chat
-        );
-      }
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: text, chatId }),
+      });
 
-      const newChat = {
-        id: Date.now(),
-        title: text.slice(0, 25),
-        messages: [userMsg, botMsg],
+      if (!res.ok) throw new Error("API failed");
+
+      const data = await res.json();
+
+      // 🔑 Save chatId from DB
+      setChatId(data.chatId);
+
+      const botMsg: MessageType = {
+        id: Date.now() + 1,
+        text: data.reply,
+        sender: "bot",
+        createdAt: new Date(),
       };
 
-      setActiveChatId(newChat.id);
-      return [newChat, ...prev];
-    });
+      setMessages((prev) => [...prev, botMsg]);
 
-  } catch (error) {
-    const errorMsg: MessageType = {
-      id: Date.now() + 2,
-      text: "⚠️ Something went wrong. Try again.",
-      sender: "bot",
-      createdAt: new Date(),
-    };
+      // 🔔 Sound
+      audioRef.current?.play().catch(() => {});
 
-    setMessages((prev: MessageType[]) => [...prev, errorMsg]);
-  } finally {
-    setIsTyping(false);
-  }
-};
+      // 🔄 Refresh sidebar chats
+      loadChats();
 
-  const handleNewChat = () => {
-    setMessages([]);
-    setActiveChatId(null);
+    } catch (error) {
+      const errorMsg: MessageType = {
+        id: Date.now(),
+        text: "⚠️ Something went wrong. Try again.",
+        sender: "bot",
+        createdAt: new Date(),
+      };
+
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
+  // 🆕 New chat
+  const handleNewChat = () => {
+    setMessages([]);
+    setChatId(null);
+  };
+
+  // 🧹 Clear messages (only UI)
   const handleClear = () => {
     setMessages([]);
   };
 
   return (
     <div className="flex h-screen">
-
       {/* Sidebar */}
       <Sidebar
         darkMode={darkMode}
@@ -128,10 +121,13 @@ export default function ChatWindow() {
         onNewChat={handleNewChat}
         chats={chats}
         setMessages={setMessages}
-        setActiveChatId={setActiveChatId}
+        setChatId={setChatId}
       />
 
-      <audio ref={audioRef} src="/notification.mp3" />
+      {/* 🔔 Audio */}
+      <audio ref={audioRef}>
+        <source src="/notification.mp3" type="audio/mpeg" />
+      </audio>
 
       {/* Main */}
       <div
@@ -143,8 +139,10 @@ export default function ChatWindow() {
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
-
-            <img src="/astra-avatar.png" className="w-20 h-20 mb-4 rounded-full" />
+            <img
+              src="/astra-avatar.png"
+              className="w-20 h-20 mb-4 rounded-full"
+            />
 
             <h1 className="text-3xl font-semibold text-gray-800 dark:text-white">
               Astra AI ✨
@@ -160,6 +158,7 @@ export default function ChatWindow() {
           </div>
         ) : (
           <>
+            {/* Messages */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
               {messages.map((msg) => (
                 <Message key={msg.id} msg={msg} />
@@ -168,6 +167,7 @@ export default function ChatWindow() {
               {isTyping && <TypingIndicator />}
             </div>
 
+            {/* Input */}
             <div className="px-6 pb-6">
               <ChatInput onSend={sendMessage} />
             </div>

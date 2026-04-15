@@ -4,8 +4,8 @@ type Props = {
   onClear: () => void;
   onNewChat: () => void;
   chats: any[];
-  setMessages: (msgs: any[]) => void;
-  setActiveChatId: (id: number) => void;
+  setMessages: any;
+  setChatId: (id: string | null) => void;
 };
 
 export default function Sidebar({
@@ -15,7 +15,7 @@ export default function Sidebar({
   onNewChat,
   chats,
   setMessages,
-  setActiveChatId,
+  setChatId,
 }: Props) {
   return (
     <div
@@ -46,8 +46,8 @@ export default function Sidebar({
             <button
               key={chat.id}
               onClick={() => {
-                setActiveChatId(chat.id);
                 setMessages(chat.messages);
+                 setChatId(chat._id);
               }}
               className="w-full text-left px-3 py-2 rounded-lg text-sm transition
 bg-gray-100 text-gray-800 hover:bg-gray-200
