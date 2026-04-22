@@ -1,88 +1,121 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
+import Groq from "groq-sdk";
 import { connectDB } from "@/lib/mongodb";
 import Chat from "@/models/Chat";
+import { getToken } from "next-auth/jwt";
+import { NextRequest } from "next/server";
 
-export async function POST(req: Request) {
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY!,
+});
+
+export async function POST(req: NextRequest) {
   try {
     await connectDB();
 
-    const { message, chatId } = await req.json();
-
-    const lowerMsg = message.toLowerCase();
-
-    // 🧠 Decide if web search needed
-    const needsSearch =
-      lowerMsg.includes("latest") ||
-      lowerMsg.includes("today") ||
-      lowerMsg.includes("news") ||
-      lowerMsg.includes("current");
-
-    let reply = "";
-
-    // 🌐 FAST PATH → Tavily only
-    if (needsSearch) {
-      try {
-        const tavilyRes = await axios.post("https://api.tavily.com/search", {
-          api_key: process.env.TAVILY_API_KEY,
-          query: message,
-          search_depth: "advanced",
-        });
-
-        const results = tavilyRes.data.results.slice(0, 2);
-
-        // ⚡ instant response
-        reply = results
-          .map((r: any, i: number) => `${i + 1}. ${r.content.slice(0, 150)}`)
-          .join("\n\n");
-
-      } catch (err) {
-        console.error("Tavily error:", err);
-        reply = "⚠️ Couldn't fetch latest info.";
-      }
-
-    } else {
-      // 🤖 SMART PATH → Ollama
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-
-      try {
-        const ollamaRes = await fetch("http://localhost:11434/api/generate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model: "phi3", // or tinyllama if needed
-            prompt: `Answer briefly (2-3 lines).
-
-Q: ${message}`,
-            stream: false,
-            options: {
-              num_predict: 100,
-            },
-          }),
-        });
-
-        const data = await ollamaRes.json();
-        reply = data.response;
-
-      } catch (err: any) {
-        console.error("Ollama error:", err);
-
-        if (err.name === "AbortError") {
-          reply = "⚡ Astra is thinking slower than usual... try again!";
-        } else {
-          reply = "⚠️ AI error occurred.";
-        }
-      }
-
-      clearTimeout(timeout);
+    // ✅ SAFE BODY PARSE
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid request body" },
+        { status: 400 }
+      );
     }
 
-    // 💾 Save to MongoDB
+    const { message, chatId } = body;
+
+    if (!message || typeof message !== "string") {
+      return NextResponse.json(
+        { error: "Message is required" },
+        { status: 400 }
+      );
+    }
+
+    // 🔐 AUTH (FIXED + RELIABLE)
+    const token = await getToken({ req });
+
+    if (!token || !token.id) {
+      console.log("❌ NO TOKEN");
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const userId = token.email as string;
+    console.log("SAVE USER:", token.email);
+
+    // 🔍 SEARCH DETECTION
+    const lowerMsg = message.toLowerCase();
+
+    const needsSearch =
+      lowerMsg.includes("latest") ||
+      lowerMsg.includes("news") ||
+      lowerMsg.includes("today") ||
+      lowerMsg.includes("current");
+
+    let context = "";
+    let sources: { title: string; link: string }[] = [];
+
+    // 🌐 SERP API (SAFE)
+    if (needsSearch && process.env.SERPAPI_KEY) {
+      try {
+        const serpRes = await axios.get(
+          "https://serpapi.com/search.json",
+          {
+            params: {
+              q: message,
+              api_key: process.env.SERPAPI_KEY,
+            },
+          }
+        );
+
+        const results =
+          serpRes.data?.organic_results?.slice(0, 3) || [];
+
+        context = results.map((r: any) => r.snippet).join("\n");
+
+        sources = results.map((r: any) => ({
+          title: r.title,
+          link: r.link,
+        }));
+      } catch (err) {
+        console.error("❌ SerpAPI error:", err);
+      }
+    }
+
+    // 🤖 GROQ LLM (SAFE)
+    let reply = "⚠️ No response";
+
+    try {
+      const completion = await groq.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: "You are Astra, a smart AI assistant.",
+          },
+          {
+            role: "user",
+            content: `${message}\n\n${
+              context ? `Web results:\n${context}` : ""
+            }`,
+          },
+        ],
+      });
+
+      reply =
+        completion.choices?.[0]?.message?.content ||
+        "⚠️ No response";
+    } catch (err) {
+      console.error("❌ Groq error:", err);
+      reply = "⚠️ AI service unavailable.";
+    }
+
+    // 💬 MESSAGES
     const userMsg = {
       text: message,
       sender: "user",
@@ -97,30 +130,45 @@ Q: ${message}`,
 
     let chat;
 
+    // 🔄 UPDATE EXISTING CHAT
     if (chatId) {
-      chat = await Chat.findById(chatId);
+      chat = await Chat.findOne({ _id: chatId, userId });
 
-      if (!chat) throw new Error("Chat not found");
+      if (!chat) {
+        return NextResponse.json(
+          { error: "Chat not found" },
+          { status: 404 }
+        );
+      }
 
       chat.messages.push(userMsg, botMsg);
+      chat.updatedAt = new Date();
+
       await chat.save();
-    } else {
+    }
+
+    // 🆕 CREATE NEW CHAT
+    else {
       chat = await Chat.create({
-        title: message.slice(0, 25),
+        userId,
+        title: message.slice(0, 30),
         messages: [userMsg, botMsg],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
     }
 
     return NextResponse.json({
       reply,
       chatId: chat._id,
+      sources,
     });
 
   } catch (error) {
-    console.error("API ERROR:", error);
+    console.error("❌ API ERROR:", error);
 
     return NextResponse.json(
-      { reply: "⚠️ Something went wrong." },
+      { error: "Server error" },
       { status: 500 }
     );
   }

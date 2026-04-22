@@ -1,50 +1,99 @@
-import ReactMarkdown from "react-markdown";
+"use client";
+
 import { MessageType } from "./ChatWindow";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export default function Message({ msg }: { msg: MessageType }) {
   const isUser = msg.sender === "user";
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(msg.text);
-  };
-
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} animate-fadeIn`}>
-      <div className="flex flex-col max-w-xs md:max-w-md">
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      
+      <div
+        className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-md
+        ${
+          isUser
+            ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
+            : "bg-white/5 border border-white/10 text-white"
+        }`}
+      >
+        {/* ✅ WRAPPER FOR STYLING */}
+        <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+          
+          <ReactMarkdown
+            components={{
+              code({ inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || "");
 
-        <div className="flex items-end gap-2">
-          {!isUser && (
-            <img src="/astra-avatar.png" className="w-8 h-8 rounded-full" />
-          )}
+                return !inline && match ? (
+                  <div className="relative">
+                    
+                    {/* Copy button */}
+                    <button
+                      onClick={() =>
+                        navigator.clipboard.writeText(String(children))
+                      }
+                      className="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                    >
+                      Copy
+                    </button>
 
-          <div className="relative group">
-            <div
-              className={`px-4 py-2 text-sm rounded-2xl shadow-md
-              ${isUser
-                ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white"
-                : "bg-white/80 dark:bg-white/10 text-gray-800 dark:text-gray-200"
-              }`}
-            >
-              <ReactMarkdown>{msg.text}</ReactMarkdown>
-            </div>
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={match[1]}
+                      PreTag="div"
+                      className="rounded-lg text-xs"
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, "")}
+                    </SyntaxHighlighter>
+                  </div>
+                ) : (
+                  <code className="bg-white/10 px-1 py-0.5 rounded text-xs">
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
+            {msg.text}
+          </ReactMarkdown>
 
-            <button
-              onClick={handleCopy}
-              className="absolute -top-2 -right-2 text-xs px-2 py-1 rounded 
-              bg-black/70 text-white opacity-0 group-hover:opacity-100 transition"
-            >
-              Copy
-            </button>
-          </div>
         </div>
 
-        <span className={`text-xs mt-1 ${isUser ? "text-right" : "text-left"} text-gray-400`}>
-          {new Date(msg.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
+        {/* 🔗 SOURCES */}
+        {msg.sender === "bot" && msg.sources?.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-gray-400">Sources</p>
 
+            {msg.sources!.map((src, i) => (
+              <a
+                key={`${msg.id}-src-${i}`}
+                href={src.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block p-2 rounded-lg 
+                bg-white/5 hover:bg-white/10 
+                border border-white/10 transition"
+              >
+                <p className="text-xs font-medium truncate">
+                  🔗 {src.title}
+                </p>
+
+                <p className="text-[10px] text-gray-400 truncate">
+                  {src.link}
+                </p>
+              </a>
+            ))}
+          </div>
+        )}
+
+        {/* ⏱ TIME */}
+        <p className="text-[10px] mt-2 opacity-60 text-right">
+          {new Date(msg.createdAt).toLocaleTimeString()}
+        </p>
       </div>
     </div>
   );

@@ -2,45 +2,53 @@
 
 import { useState } from "react";
 
-export default function ChatInput({ onSend }: { onSend: (text: string) => void }) {
+export default function ChatInput({
+  onSend,
+  selectedModel,
+  setSelectedModel,
+}: any) {
   const [input, setInput] = useState("");
 
-  const isDisabled = !input.trim();
-
-  const handleSend = () => {
-    if (isDisabled) return;
-    onSend(input);
-    setInput(""); // ✅ clears input
-  };
-
   return (
-    <div className="relative flex items-center gap-2 
-      bg-white/70 dark:bg-white/5 
-      backdrop-blur-xl 
-      border border-white/20 
-      rounded-full px-4 py-2 shadow-lg">
+    <div>
 
-      <input
-        type="text"
-        value={input} // ✅ VERY IMPORTANT
-        onChange={(e) => setInput(e.target.value)} // ✅ REQUIRED
-        onKeyDown={(e) => e.key === "Enter" && handleSend()}
-        placeholder="Ask Astra anything..."
-        className="flex-1 bg-transparent outline-none text-sm 
-        text-gray-800 dark:text-white placeholder-gray-400"
-      />
+      <div className="flex justify-between mb-2">
+        <select
+  value={selectedModel}
+  onChange={(e) => setSelectedModel(e.target.value)}
+  className="bg-[#020617] text-white border border-white/10 text-xs px-2 py-1 rounded"
+>
+  <option value="groq">⚡ Groq</option>
+  <option value="openai">🧠 OpenAI</option>
+  <option value="serpapi">🌐 SerpAPI</option>
+</select>
 
-      <button
-        onClick={handleSend}
-        disabled={isDisabled}
-        className={`px-4 py-2 rounded-full text-sm transition
-        ${isDisabled
-          ? "bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-          : "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:scale-105"
-        }`}
-      >
-        Send
-      </button>
+        <label className="text-xs text-gray-400 cursor-pointer">
+          📎 Attach
+          <input type="file" className="hidden" />
+        </label>
+      </div>
+
+      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask Astra..."
+          className="flex-1 bg-transparent outline-none text-white text-sm"
+          onKeyDown={(e) => e.key === "Enter" && onSend(input)}
+        />
+
+        <button
+          onClick={() => {
+            onSend(input);
+            setInput("");
+          }}
+          className="bg-blue-500 px-4 py-2 rounded-lg text-white"
+        >
+          Send
+        </button>
+      </div>
     </div>
   );
 }
