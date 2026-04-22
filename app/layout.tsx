@@ -27,10 +27,13 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
-        {/* ✅ ONLY ONE RENDER */}
+      <body className="min-h-screen flex flex-col bg-white text-black dark:bg-[#020617] dark:text-white transition-colors duration-300">
+        
+        {/* Global Providers (Theme + anything else) */}
         <Providers>{children}</Providers>
+
       </body>
     </html>
   );

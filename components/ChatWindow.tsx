@@ -20,7 +20,8 @@ export default function ChatWindow() {
 
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  
+  const [darkMode, setDarkMode] = useState(true);
+
   const [chats, setChats] = useState<any[]>([]);
   console.log("CHATS STATE:", chats);
 
@@ -28,6 +29,17 @@ export default function ChatWindow() {
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const [collapsed, setCollapsed] = useState(false);
+
+useEffect(() => {
+  const saved = localStorage.getItem("theme");
+  if (saved) setDarkMode(saved === "dark");
+}, []);
+
+useEffect(() => {
+  localStorage.setItem("theme", darkMode ? "dark" : "light");
+}, [darkMode]);
 
   // 🔥 AUTO SCROLL
   useEffect(() => {
@@ -153,14 +165,27 @@ export default function ChatWindow() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div
+  className={`flex h-screen transition ${
+    darkMode
+      ? "bg-[#020617] text-white"
+      : "bg-gray-100 text-black"
+  }`}
+>
 
       {/* Sidebar */}
       <Sidebar
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        onClear={handleClear}
         onNewChat={handleNewChat}
         chats={chats}
         setMessages={setMessages}
         setChatId={setChatId}
+        currentChatId={chatId}
+        setChats={setChats}
       />
 
       {/* SOUND */}
@@ -169,43 +194,24 @@ export default function ChatWindow() {
       </audio>
 
       {/* MAIN */}
-      <div className="flex flex-col flex-1 relative
-        bg-gradient-to-br from-[#020617] via-[#0F172A] to-[#1E1B4B]">
-
+      <div
+  className={`flex flex-col flex-1 transition ${
+    darkMode ? "bg-gradient-to-b from-[#020617] via-[#020617] to-[#0F172A]" : "bg-gray-100"
+  }`}
+>
+        
         {/* 🔝 TOP RIGHT CONTROLS */}
-        <div className="absolute top-4 right-6 flex items-center gap-3 z-50">
+        <div className="w-full flex justify-end items-center gap-3 p-4">
 
-          {/* CLEAR */}
-          <button
-            onClick={handleClear}
-            className="p-2 rounded-full bg-white/10 hover:bg-red-500/20 transition"
-            title="Clear chat"
-          >
-            🧹
-          </button>
+  {/* 🌙 DARK MODE TOGGLE */}
+  <button
+    onClick={() => setDarkMode(!darkMode)}
+    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+  >
+    {darkMode ? "🌙" : "☀️"}
+  </button>
 
-          {/* USER */}
-          {session?.user?.image ? (
-            <img
-              src={session.user.image}
-              className="w-8 h-8 rounded-full"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs">
-              {session?.user?.email?.[0]}
-            </div>
-          )}
-
-          {/* LOGOUT */}
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="px-3 py-1 text-sm bg-red-500/20 text-red-300 rounded hover:bg-red-500/40 transition"
-          >
-            Logout
-          </button>
-
-        </div>
-
+</div>
         {/* EMPTY STATE */}
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
@@ -215,7 +221,9 @@ export default function ChatWindow() {
               className="w-20 h-20 mb-4 rounded-full"
             />
 
-            <h1 className="text-3xl font-semibold text-white">
+           <h1 className={`text-3xl font-semibold ${
+  darkMode ? "text-white" : "text-black"
+}`}>
               Astra AI ✨
             </h1>
 
@@ -230,10 +238,15 @@ export default function ChatWindow() {
         ) : (
           <>
             {/* MESSAGES */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 custom-scroll">
+            <div
+  className={`flex-1 overflow-y-auto p-6 transition ${
+    darkMode ? "" : "bg-gray-100"
+  }`}
+>
 
               {messages.map((msg) => (
-                <Message key={msg.id} msg={msg} />
+                <Message key={msg.id} msg={msg} darkMode={darkMode} />
+                
               ))}
 
               {isTyping && <TypingIndicator />}
@@ -242,9 +255,9 @@ export default function ChatWindow() {
             </div>
 
             {/* INPUT */}
-            <div className="px-6 pb-6">
-              <ChatInput onSend={sendMessage} />
-            </div>
+           <div className="p-4 border-t border-white/10">
+  <ChatInput onSend={sendMessage} darkMode={darkMode} />
+</div>
           </>
         )}
       </div>

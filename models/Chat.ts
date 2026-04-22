@@ -14,12 +14,14 @@ const MessageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-});
+},
+{ _id: true } // ✅ Enable _id for messages
+);
 
 const ChatSchema = new mongoose.Schema(
   {
     userId: {
-      type: String, // 🔥 REQUIRED for auth-based chats
+      type: mongoose.Types.ObjectId, // 🔥 REQUIRED for auth-based chats
       required: true,
       index: true, // 🚀 faster queries
     },

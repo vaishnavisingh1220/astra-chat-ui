@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
@@ -17,42 +17,38 @@ const handler = NextAuth({
         password: { label: "Password", type: "password" },
       },
 
-      async authorize(credentials: any) {
-  console.log("LOGIN ATTEMPT:", credentials);
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Missing credentials");
+        }
 
-  if (!credentials?.email || !credentials?.password) {
-    throw new Error("Missing credentials");
-  }
+        await connectDB();
 
-  await connectDB();
+        const user = await User.findOne({
+          email: credentials.email,
+        });
 
-  const user = await User.findOne({
-    email: credentials.email,
-  });
+        if (!user || !user.passwordHash) {
+          throw new Error("User not found");
+        }
 
-  console.log("DB USER:", user);
+        // 🔐 Compare hashed password
+        const isValid = await bcrypt.compare(
+          credentials.password,
+          user.passwordHash
+        );
 
-  if (!user) {
-    throw new Error("User not found");
-  }
+        if (!isValid) {
+          throw new Error("Invalid password");
+        }
 
-  const isValid = await bcrypt.compare(
-    credentials.password,
-    user.passwordHash
-  );
-
-  console.log("PASSWORD MATCH:", isValid);
-
-  if (!isValid) {
-    throw new Error("Invalid password");
-  }
-
-  return {
-    id: user._id.toString(),
-    email: user.email,
-    name: user.name,
-  };
-}
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          image: user.image || null,
+        };
+      },
     }),
 
     // 🌐 GOOGLE LOGIN
@@ -71,29 +67,37 @@ const handler = NextAuth({
   callbacks: {
     // 🔥 Save OAuth users to DB
     async signIn({ user, account }) {
-      if (!account) return false; // ✅ FIX TS ERROR
+      if (!account) return false;
 
       await connectDB();
 
       if (account.provider !== "credentials") {
-        const existing = await User.findOne({
+        const existingUser = await User.findOne({
           email: user.email,
         });
 
-        if (!existing) {
+        if (!existingUser) {
           await User.create({
             name: user.name,
             email: user.email,
             image: user.image,
             provider: account.provider,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
+        } else {
+          // ✅ Optional: update existing user info
+          existingUser.name = user.name || existingUser.name;
+          existingUser.image = user.image || existingUser.image;
+          existingUser.updatedAt = new Date();
+          await existingUser.save();
         }
       }
 
       return true;
     },
 
-    // 🔥 Attach user id to token
+    // 🔥 Attach user id to JWT
     async jwt({ token, user }) {
       if (user) {
         token.id = (user as any).id;
@@ -101,7 +105,7 @@ const handler = NextAuth({
       return token;
     },
 
-    // Attach user id to session
+    // 🔥 Attach user id to session
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = token.id;
@@ -109,10 +113,10 @@ const handler = NextAuth({
       return session;
     },
 
-    async redirect({ url, baseUrl }) {
-  return baseUrl; // always go to homepage
-}
-
+    // 🔥 Control redirect after login
+    async redirect({ baseUrl }) {
+      return `${baseUrl}/`; // or "/chat" if you prefer
+    },
   },
 
   session: {
@@ -120,7 +124,7 @@ const handler = NextAuth({
   },
 
   pages: {
-    signIn: "/login", // ✅ custom login page
+    signIn: "/login",
   },
 
   secret: process.env.NEXTAUTH_SECRET,

@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-export default function Message({ msg }: { msg: MessageType }) {
+export default function Message({ msg, darkMode }: { msg: MessageType; darkMode: boolean }) {
   const isUser = msg.sender === "user";
 
   return (
@@ -14,10 +14,12 @@ export default function Message({ msg }: { msg: MessageType }) {
       <div
         className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-md
         ${
-          isUser
-            ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
-            : "bg-white/5 border border-white/10 text-white"
-        }`}
+  isUser
+    ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
+    : darkMode
+    ? "bg-white/5 border border-white/10 text-white"
+    : "bg-gray-200 text-black"
+}}}`}
       >
         {/* ✅ WRAPPER FOR STYLING */}
         <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">

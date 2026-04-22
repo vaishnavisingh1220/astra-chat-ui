@@ -6,47 +6,93 @@ export default function ChatInput({
   onSend,
   selectedModel,
   setSelectedModel,
+  darkMode,
+  setDarkMode,
 }: any) {
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSend = async () => {
+  if (!input.trim() || loading) return;
+
+  setLoading(true);
+  await onSend(input);
+  setInput("");
+  setLoading(false);
+};
 
   return (
-    <div>
-
-      <div className="flex justify-between mb-2">
+    <div
+      className={`w-full p-3 rounded-2xl border transition space-y-2
+      ${
+        darkMode
+          ? "bg-[#020617] border-white/10"
+          : "bg-white border-gray-200 shadow-sm"
+      }`}
+    >
+      {/* 🔝 TOP ROW */}
+      <div className="flex justify-between items-center">
+        
+        {/* MODEL SELECT */}
         <select
-  value={selectedModel}
-  onChange={(e) => setSelectedModel(e.target.value)}
-  className="bg-[#020617] text-white border border-white/10 text-xs px-2 py-1 rounded"
->
-  <option value="groq">⚡ Groq</option>
-  <option value="openai">🧠 OpenAI</option>
-  <option value="serpapi">🌐 SerpAPI</option>
-</select>
+          value={selectedModel}
+          onChange={(e) => setSelectedModel(e.target.value)}
+          className={`text-xs px-2 py-1 rounded outline-none transition
+          ${
+            darkMode
+              ? "bg-black/40 text-white border border-white/10"
+              : "bg-gray-100 text-black border border-gray-300"
+          }`}
+        >
+          <option value="groq">⚡ Groq</option>
+          <option value="openai">🧠 OpenAI</option>
+          <option value="serpapi">🌐 SerpAPI</option>
+        </select>
 
-        <label className="text-xs text-gray-400 cursor-pointer">
+        {/* ATTACH */}
+        <label
+          className={`text-xs cursor-pointer flex items-center gap-1
+          ${darkMode ? "text-gray-400" : "text-gray-500"}`}
+        >
           📎 Attach
           <input type="file" className="hidden" />
         </label>
       </div>
 
-      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-
+      {/* 💬 INPUT BAR */}
+      <div
+        className={`flex items-center gap-2 rounded-xl px-3 py-2 transition
+        focus-within:ring-2 focus-within:ring-purple-500/30
+        ${
+          darkMode
+            ? "bg-black/40 border border-white/10"
+            : "bg-gray-50 border border-purple-200"
+        }`}
+      >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask Astra..."
-          className="flex-1 bg-transparent outline-none text-white text-sm"
-          onKeyDown={(e) => e.key === "Enter" && onSend(input)}
+          className={`flex-1 bg-transparent outline-none text-sm
+          ${
+            darkMode
+              ? " bg-transparent text-white placeholder-gray-400"
+              : "bg-transparent text-black placeholder-gray-500"
+          }`}
+          onKeyDown={(e) => e.key === "Enter" && handleSend()}
         />
 
+        {/* 🚀 SEND BUTTON */}
         <button
-          onClick={() => {
-            onSend(input);
-            setInput("");
-          }}
-          className="bg-blue-500 px-4 py-2 rounded-lg text-white"
+          onClick={handleSend}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition active:scale-95
+          ${
+            darkMode
+              ? "bg-gradient-to-r from-[#020617] to-purple-600 text-white hover:opacity-90"
+              : "bg-gradient-to-r from-purple-100 to-purple-300 text-black hover:opacity-90 shadow-sm"
+          }`}
         >
-          Send
+          {loading ? "..." : "Send"}
         </button>
       </div>
     </div>
