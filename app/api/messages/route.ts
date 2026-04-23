@@ -60,8 +60,21 @@ export async function POST(req: Request) {
       });
     }
 
+    // ✅ Fetch full conversation history
+    const pastMessages = await Message.find({
+  threadId,
+  userId: session.user.email,
+})
+  .sort({ createdAt: 1 })
+  .limit(10);
+
+const chatHistory = pastMessages.map((m) => ({
+  role: m.role,
+  content: m.content,
+}));
+
     // ✅ Generate AI response
-    const { text, provider, sources } = await generateReply(content, model);
+    const { text, provider, sources } = await generateReply(content, chatHistory);
 
     // ✅ Update thread timestamp
     await Thread.findByIdAndUpdate(threadId, {

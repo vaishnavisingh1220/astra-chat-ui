@@ -1,8 +1,31 @@
-function needsSearch(query: string) {
-  const keywords = ["latest", "news", "today", "current", "price", "weather"];
-  return keywords.some((k) => query.toLowerCase().includes(k));
+// ==============================
+// 🤖 OPENROUTER LLM CALL
+// ==============================
+async function callLLM(messages: any[], history: any[] = []) {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "http://localhost:3000",
+      "X-Title": "Agent Chat UI",
+    },
+    body: JSON.stringify({
+      model: "meta-llama/llama-3-8b-instruct",
+      messages: [...messages, ...history],
+    }),
+  });
+
+  const data = await res.json();
+
+  console.log("LLM RAW RESPONSE:", data);
+
+  return data?.choices?.[0]?.message?.content;
 }
 
+// ==============================
+// 🌐 SERPAPI TOOL
+// ==============================
 async function fetchSerpData(query: string) {
   const res = await fetch(
     `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&api_key=${process.env.SERPAPI_KEY}`
@@ -21,64 +44,137 @@ async function fetchSerpData(query: string) {
   };
 }
 
-export async function generateReply(query: string) {
-  console.log("QUERY:", query);
+// ==============================
+// 🧠 AGENTIC AI FUNCTION
+// ==============================
+export async function generateReply(query: string, history: any[] = []) {
+  console.log("🧠 AGENT QUERY:", query);
 
   try {
-    let context = query;
-    let sources: any[] = [];
-    let provider = "llama (openrouter)";
+    // ==========================
+    // STEP 1: DECISION MAKING
+    // ==========================
+    const decision = await callLLM([
+      {
+        role: "system",
+        content: `
+You are an intelligent AI agent.
 
-    // 🌐 USE SERPAPI FOR REAL-TIME
-    if (needsSearch(query)) {
-      console.log("Using SERPAPI");
+You have tools:
 
-      const { snippets, sources: src } = await fetchSerpData(query);
+1. SEARCH:<query> → for real-time info
+2. CALCULATE:<expression> → for math
 
-      context = `Use this real-time data to answer:\n\n${snippets}\n\nQuestion: ${query}`;
-      sources = src;
-      provider = "llama + serpapi";
+Rules:
+- Use SEARCH for current info
+- Use CALCULATE for math problems
+- For math, output ONLY valid math expressions
+  Example: CALCULATE:25*12+5
+- Do NOT include words in calculation
+- For normal answers: ANSWER:<text>
+
+ONLY return:
+SEARCH:...
+CALCULATE:...
+ANSWER:...
+`,
+      },
+      { role: "user", content: query },
+    ], history);
+
+    console.log("🧠 AGENT DECISION:", decision);
+
+    // ==========================
+    // STEP 2: TOOL USAGE (SERPAPI)
+    // ==========================
+    if (decision?.startsWith("SEARCH:")) {
+      const searchQuery = decision.replace("SEARCH:", "").trim();
+
+      console.log("🔍 USING SERPAPI:", searchQuery);
+
+      const { snippets, sources } = await fetchSerpData(searchQuery);
+
+      // ==========================
+      // STEP 3: FINAL ANSWER USING TOOL DATA
+      // ==========================
+      const finalAnswer = await callLLM([
+        {
+          role: "system",
+          content: `
+You are an AI assistant.
+
+Use the provided real-time data to answer clearly and accurately.
+`,
+        },
+        {
+          role: "user",
+          content: `Real-time Data:\n${snippets}\n\nQuestion: ${query}`,
+        },
+      ], history);
+
+      return {
+        text: finalAnswer || "No response",
+        provider: "agent (llama + serpapi)",
+        sources,
+      };
     }
 
-    // 🤖 OPENROUTER (LLAMA)
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
-        "X-Title": "Chat UI Project",
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-3-8b-instruct",
-        messages: [
-          {
-            role: "user",
-            content: context,
-          },
-        ],
-      }),
-    });
+    // ==========================
+    // STEP 4: DIRECT ANSWER
+    // ==========================
+    if (decision?.startsWith("ANSWER:")) {
+      return {
+        text: decision.replace("ANSWER:", "").trim(),
+        provider: "agent (llama)",
+        sources: [],
+      };
+    }
 
-    const data = await res.json();
+    // calculator tool
+   function calculate(expression: string) {
+  try {
+    // ✅ Remove words, keep only math symbols
+    const cleaned = expression
+      .replace(/[^0-9+\-*/().]/g, "") // remove text
+      .trim();
 
-    console.log("OPENROUTER RESPONSE:", data);
+    if (!cleaned) return "Invalid calculation";
 
-    const text = data?.choices?.[0]?.message?.content;
+    const result = Function(`"use strict"; return (${cleaned})`)();
 
-    if (!text) throw new Error("No response");
+    return result.toString();
+  } catch {
+    return "Invalid calculation";
+  }
+}
 
+// 🧮 CALCULATOR TOOL
+if (decision?.startsWith("CALCULATE:")) {
+  const expression = decision.replace("CALCULATE:", "").trim();
+
+  const result = calculate(expression);
+
+  return {
+    text: `Result: ${result}`,
+    provider: "agent (calculator)",
+    sources: [],
+  };
+}
+
+    // ==========================
+    // STEP 5: FALLBACK
+    // ==========================
     return {
-      text,
-      provider,
-      sources,
+      text: decision || "No response",
+      provider: "agent",
+      sources: [],
     };
 
   } catch (err) {
-    console.error("❌ ERROR:", err);
+    console.error("❌ AGENT ERROR:", err);
 
     return {
-      text: "⚠️ Failed to fetch real-time data",
+      text: "⚠️ Agent failed",
       provider: "error",
       sources: [],
     };
