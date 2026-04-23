@@ -5,25 +5,32 @@ import ReactMarkdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-export default function Message({ msg, darkMode }: { msg: MessageType; darkMode: boolean }) {
-  const isUser = msg.sender === "user";
+export default function Message({
+  msg,
+  darkMode,
+}: {
+  msg: MessageType;
+  darkMode: boolean;
+}) {
+  const isUser = msg.role === "user";
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       
       <div
-        className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-md
+        className={`max-w-[70%] px-4 py-3 rounded-2xl shadow-sm
         ${
-  isUser
-    ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white"
-    : darkMode
-    ? "bg-white/5 border border-white/10 text-white"
-    : "bg-gray-200 text-black"
-}}}`}
+          isUser
+            ? darkMode
+    ? "bg-gradient-to-r from-[#020617] to-purple-600 text-white"
+    : "bg-gradient-to-r from-purple-100 to-purple-300 text-black shadow-sm"
+            : darkMode
+            ? "bg-white/5 border border-white/10 text-white"
+            : "bg-gray-200 text-black"
+        }`}
       >
-        {/* ✅ WRAPPER FOR STYLING */}
+        {/* MESSAGE CONTENT */}
         <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-          
           <ReactMarkdown
             components={{
               code({ inline, className, children, ...props }: any) {
@@ -31,8 +38,6 @@ export default function Message({ msg, darkMode }: { msg: MessageType; darkMode:
 
                 return !inline && match ? (
                   <div className="relative">
-                    
-                    {/* Copy button */}
                     <button
                       onClick={() =>
                         navigator.clipboard.writeText(String(children))
@@ -60,42 +65,46 @@ export default function Message({ msg, darkMode }: { msg: MessageType; darkMode:
               },
             }}
           >
-            {msg.text}
+            {msg.content}
           </ReactMarkdown>
-
         </div>
 
-        {/* 🔗 SOURCES */}
-        {msg.sender === "bot" && msg.sources?.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-gray-400">Sources</p>
+        {/* PROVIDER */}
+        {msg.provider && (
+          <div className="text-[10px] text-gray-400 mt-2">
+            via {msg.provider.toUpperCase()}
+             {msg.provider.includes("llama") && "🦙"}
+    {msg.provider === "groq" && "⚡"}
+    {msg.provider === "gemini" && "✨"}
+          </div>
+        )}
 
-            {msg.sources!.map((src, i) => (
+        {/* SOURCES */}
+        {msg.sources?.length > 0 && (
+          <div className="mt-2 text-xs">
+            <div className="font-semibold">Sources:</div>
+            {msg.sources.map((s, i) => (
               <a
-                key={`${msg.id}-src-${i}`}
-                href={src.link}
+                key={i}
+                href={s.link}
                 target="_blank"
-                rel="noopener noreferrer"
-                className="block p-2 rounded-lg 
-                bg-white/5 hover:bg-white/10 
-                border border-white/10 transition"
+                className="block text-blue-500 underline"
               >
-                <p className="text-xs font-medium truncate">
-                  🔗 {src.title}
-                </p>
-
-                <p className="text-[10px] text-gray-400 truncate">
-                  {src.link}
-                </p>
+                {s.title}
               </a>
             ))}
           </div>
         )}
 
-        {/* ⏱ TIME */}
-        <p className="text-[10px] mt-2 opacity-60 text-right">
-          {new Date(msg.createdAt).toLocaleTimeString()}
-        </p>
+        {/* TIME */}
+        {msg.createdAt && (
+          <div className="text-[10px] opacity-60 mt-2 text-right">
+            {new Date(msg.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

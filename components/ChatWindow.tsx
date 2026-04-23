@@ -5,14 +5,15 @@ import Message from "./Message";
 import ChatInput from "./ChatInput";
 import Sidebar from "./Sidebar";
 import TypingIndicator from "./TypingIndicator";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 
 export type MessageType = {
-  id: number;
-  text: string;
-  sender: "user" | "bot";
-  createdAt: Date;
-  sources?: { title: string; link: string }[];
+  _id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: string;
+ sources?: { title: string; link: string }[];
+ provider?: string;
 };
 
 export default function ChatWindow() {
@@ -22,170 +23,252 @@ export default function ChatWindow() {
   const [isTyping, setIsTyping] = useState(false);
   const [darkMode, setDarkMode] = useState(true);
 
-  const [chats, setChats] = useState<any[]>([]);
-  console.log("CHATS STATE:", chats);
+  const [collapsed, setCollapsed] = useState(false);
 
-  const [chatId, setChatId] = useState<string | null>(null);
+  // 🔥 THREAD STATE
+  const [threads, setThreads] = useState<any[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("gpt-4");
+  const [model, setModel] = useState("auto");
 
-useEffect(() => {
-  const saved = localStorage.getItem("theme");
-  if (saved) setDarkMode(saved === "dark");
-}, []);
+  // 🌙 THEME
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved) setDarkMode(saved === "dark");
+  }, []);
 
-useEffect(() => {
-  localStorage.setItem("theme", darkMode ? "dark" : "light");
-}, [darkMode]);
+  useEffect(() => {
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
 
   // 🔥 AUTO SCROLL
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // 📚 LOAD CHATS (SAFE)
-  const loadChats = async () => {
-    try {
-      const res = await fetch("/api/chats");
+  // =========================
+// 🧠 THREAD FUNCTIONS
+// =========================
 
-      if (!res.ok) {
-        console.error("Chats API failed:", res.status);
-        return;
-      }
+const loadThreads = async () => {
+  const res = await fetch("/api/threads");
+  const data = await res.json();
+  setThreads(data);
+};
 
-      const text = await res.text();
-      if (!text) return;
+useEffect(() => {
+  loadThreads();
+}, []);
 
-      const data = JSON.parse(text);
-      setChats(data);
+const createThread = async () => {
+  console.log("creating thread"); // debug
 
-    } catch (err) {
-      console.error("Failed to load chats", err);
+  const res = await fetch("/api/threads", {
+    method: "POST",
+  });
+
+  const data = await res.json();
+
+  setThreads((prev) => [data, ...prev]);
+  setActiveThreadId(data._id);
+  setMessages([]);
+
+  return data._id;
+};
+
+const loadThreadMessages = async (id: string) => {
+  console.log("loading thread:", id); // debug
+
+  setActiveThreadId(id);
+
+  const res = await fetch(`/api/messages?threadId=${id}`);
+  const data = await res.json();
+
+  console.log("MESSAGES:", data); 
+
+  setMessages(data || []);
+};
+
+// =========================
+// 💬 SEND MESSAGE (UPDATED)
+// =========================
+
+const sendMessage = async (text: string) => {
+  if (!text.trim()) return;
+
+  let threadId = activeThreadId;
+
+  if (!threadId) {
+    threadId = await createThread();
+  }
+
+  setIsTyping(true);
+
+  // ✅ Add user message instantly
+  setMessages((prev) => [
+    ...prev,
+    {
+      _id: Date.now().toString(),
+      role: "user",
+      content: text,
+    },
+  ]);
+
+  try {
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        threadId,
+        content: text,
+        model,
+      }),
+    });
+
+    // ✅ Handle API failure safely
+    if (!res.ok) {
+      console.error("API error:", res.status);
+      throw new Error("API failed");
     }
-  };
 
-  useEffect(() => {
-    loadChats();
-  }, []);
-
-  // 💬 SEND MESSAGE
-  const sendMessage = async (text: string) => {
-    if (!text.trim()) return;
-
-    const userMsg: MessageType = {
-      id: Date.now(),
-      text,
-      sender: "user",
-      createdAt: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setIsTyping(true);
-
+    let data;
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: text, chatId }),
+      data = await res.json();
+      console.log("API RESPONSE FULL:", JSON.stringify(data, null, 2));
+    } catch {
+      throw new Error("Invalid JSON response");
+    }
+
+    const { reply, provider, sources } = data;
+
+    // ✅ fallback if reply missing
+    const finalReply = reply || "⚠️ No response generated";
+
+    // ✅ Add empty assistant message (stream target)
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: "streaming",
+        role: "assistant",
+        content: "",
+        provider,
+        sources,
+      },
+    ]);
+
+    let currentText = "";
+
+    // 🔥 STREAMING LOOP (safe)
+    for (let i = 0; i < finalReply.length; i++) {
+      currentText += finalReply[i];
+
+      await new Promise((r) => setTimeout(r, 12));
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        const lastIndex = updated.length - 1;
+
+        if (updated[lastIndex]?.role === "assistant") {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            content: currentText,
+          };
+        }
+
+        return updated;
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error("API ERROR:", data);
-        throw new Error(data.error || "API failed");
-      }
-
-      setChatId(data.chatId);
-
-      const botMsg: MessageType = {
-        id: Date.now() + 1,
-        text: data.reply,
-        sender: "bot",
-        createdAt: new Date(),
-        sources: data.sources || [],
-      };
-
-      // 🔥 STREAMING EFFECT (fake typing)
-      let currentText = "";
-      for (let char of botMsg.text) {
-        currentText += char;
-
-        setMessages((prev) => {
-          const copy = [...prev];
-          const last = copy[copy.length - 1];
-
-          if (last?.sender === "bot") {
-            last.text = currentText;
-            return [...copy];
-          } else {
-            return [...copy, { ...botMsg, text: currentText }];
-          }
-        });
-
-        await new Promise((r) => setTimeout(r, 10));
-      }
-
-      audioRef.current?.play().catch(() => {});
-
-      await loadChats();
-
-    } catch (error) {
-      console.error(error);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          text: "⚠️ Failed to get response",
-          sender: "bot",
-          createdAt: new Date(),
-        },
-      ]);
-    } finally {
-      setIsTyping(false);
     }
-  };
 
-  // 🧹 CLEAR CHAT
-  const handleClear = () => {
-    setMessages([]);
-    setChatId(null);
-  };
+    // ✅ Replace temp streaming ID safely
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg._id === "streaming"
+          ? { ...msg, _id: Date.now().toString() }
+          : msg
+      )
+    );
 
-  // ➕ NEW CHAT
-  const handleNewChat = () => {
-    setMessages([]);
-    setChatId(null);
-  };
+// ✅ SAVE AI MESSAGE TO DB
+await fetch("/api/messages/save", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    threadId,
+    content: currentText,
+  }),
+});
+
+    // ✅ Refresh sidebar
+    loadThreads();
+
+  } catch (err) {
+    console.error("Send error:", err);
+
+    // ❌ graceful error message
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: Date.now().toString(),
+        role: "assistant",
+        content: "⚠️ Failed to generate response",
+      },
+    ]);
+  } finally {
+    setIsTyping(false);
+  }
+};
+
+// clear 
+const handleClear = async () => {
+  if (!activeThreadId) return;
+
+  try {
+    await fetch(`/api/messages/clear`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ threadId: activeThreadId }),
+    });
+
+    setMessages([]); // clear UI
+
+  } catch (err) {
+    console.error("Clear failed:", err);
+  }
+};
+
 
   return (
     <div
-  className={`flex h-screen transition ${
-    darkMode
-      ? "bg-[#020617] text-white"
-      : "bg-gray-100 text-black"
-  }`}
->
-
+      className={`flex h-screen transition ${
+        darkMode
+          ? "bg-[#020617] text-white"
+          : "bg-gray-100 text-black"
+      }`}
+    >
       {/* Sidebar */}
       <Sidebar
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
+        /*onClear={handleClear}
+        onNewChat={handleNewChat} */ 
+        threads={threads} //
+        loadThreadMessages={loadThreadMessages} 
+        activeThreadId={activeThreadId} 
+        onThreadClick={loadThreadMessages}
+        onNewChat={createThread}
         onClear={handleClear}
-        onNewChat={handleNewChat}
-        chats={chats}
-        setMessages={setMessages}
-        setChatId={setChatId}
-        currentChatId={chatId}
-        setChats={setChats}
       />
 
       {/* SOUND */}
@@ -195,35 +278,33 @@ useEffect(() => {
 
       {/* MAIN */}
       <div
-  className={`flex flex-col flex-1 transition ${
-    darkMode ? "bg-gradient-to-b from-[#020617] via-[#020617] to-[#0F172A]" : "bg-gray-100"
-  }`}
->
-        
-        {/* 🔝 TOP RIGHT CONTROLS */}
+        className={`flex flex-col flex-1 transition ${
+          darkMode
+            ? "bg-gradient-to-b from-[#020617] via-[#020617] to-[#0F172A]"
+            : "bg-gray-100"
+        }`}
+      >
+        {/* TOP RIGHT */}
         <div className="w-full flex justify-end items-center gap-3 p-4">
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
+          >
+            {darkMode ? "🌙" : "☀️"}
+          </button>
+        </div>
 
-  {/* 🌙 DARK MODE TOGGLE */}
-  <button
-    onClick={() => setDarkMode(!darkMode)}
-    className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
-  >
-    {darkMode ? "🌙" : "☀️"}
-  </button>
-
-</div>
         {/* EMPTY STATE */}
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
-
             <img
               src="/astra-avatar.png"
               className="w-20 h-20 mb-4 rounded-full"
             />
 
-           <h1 className={`text-3xl font-semibold ${
-  darkMode ? "text-white" : "text-black"
-}`}>
+            <h1 className={`text-3xl font-semibold ${
+              darkMode ? "text-white" : "text-black"
+            }`}>
               Astra AI ✨
             </h1>
 
@@ -232,32 +313,29 @@ useEffect(() => {
             </p>
 
             <div className="mt-6 w-full max-w-xl">
-              <ChatInput onSend={sendMessage} />
+              <ChatInput onSend={sendMessage} darkMode={darkMode} model={model} setModel={setModel} />
             </div>
           </div>
         ) : (
           <>
             {/* MESSAGES */}
-            <div
-  className={`flex-1 overflow-y-auto p-6 transition ${
-    darkMode ? "" : "bg-gray-100"
-  }`}
->
-
-              {messages.map((msg) => (
-                <Message key={msg.id} msg={msg} darkMode={darkMode} />
-                
-              ))}
+           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+  {messages.map((msg, index) => (
+    <Message
+      key={msg._id || index} // ✅ FIXED
+      msg={msg}
+      darkMode={darkMode}
+    />
+  ))}
 
               {isTyping && <TypingIndicator />}
-
               <div ref={bottomRef} />
             </div>
 
             {/* INPUT */}
-           <div className="p-4 border-t border-white/10">
-  <ChatInput onSend={sendMessage} darkMode={darkMode} />
-</div>
+            <div className="p-4 border-t border-white/10">
+              <ChatInput onSend={sendMessage} darkMode={darkMode} model={model} setModel={setModel} />
+            </div>
           </>
         )}
       </div>

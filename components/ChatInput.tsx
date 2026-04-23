@@ -1,11 +1,24 @@
 "use client";
 
+import { Groq } from "groq-sdk";
 import { useState } from "react";
+
+type ChatInputProps = {
+  onSend: (text: string) => void;
+  darkMode: boolean;
+  selectedModel: string;
+  setSelectedModel: (val: string) => void;
+  model: string;
+  setModel: (val: string) => void;
+};
+
 
 export default function ChatInput({
   onSend,
   selectedModel,
   setSelectedModel,
+  model,
+  setModel,
   darkMode,
   setDarkMode,
 }: any) {
@@ -35,8 +48,8 @@ export default function ChatInput({
         
         {/* MODEL SELECT */}
         <select
-          value={selectedModel}
-          onChange={(e) => setSelectedModel(e.target.value)}
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
           className={`text-xs px-2 py-1 rounded outline-none transition
           ${
             darkMode
@@ -45,8 +58,8 @@ export default function ChatInput({
           }`}
         >
           <option value="groq">⚡ Groq</option>
-          <option value="openai">🧠 OpenAI</option>
-          <option value="serpapi">🌐 SerpAPI</option>
+          <option value="openrouter">🧠 OpenRouter</option>
+          <option value="serpapi">🌐 SerpApi</option>
         </select>
 
         {/* ATTACH */}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
-import Chat from "@/models/Chat";
+import Chat from "@/models/Thread";
 import { getToken } from "next-auth/jwt";
+import mongoose from "mongoose";
 
 // ✅ DELETE CHAT
 export async function DELETE(
@@ -19,7 +20,7 @@ export async function DELETE(
 
     const deleted = await Chat.findOneAndDelete({
       _id: params.id,
-      userId: token.id,
+      userId: new mongoose.Types.ObjectId(token.id) ,
     });
 
     if (!deleted) {

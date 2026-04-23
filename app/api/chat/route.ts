@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 import Groq from "groq-sdk";
 import { connectDB } from "@/lib/mongodb";
-import Chat from "@/models/Chat";
+import Chat from "@/models/Thread";
 import { getToken } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 
