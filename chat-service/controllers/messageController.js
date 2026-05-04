@@ -67,13 +67,13 @@ export const sendMessage = async (req, res) => {
       console.log("Sending to AI:", formattedHistory);
 
       const aiRes = await axios.post(
-        process.env.AI_SERVICE_URL || "http://localhost:5002/generate",
-        { messages: formattedHistory }
-      );
-
+  `${process.env.AI_SERVICE_URL}/generate`,
+  { messages: formattedHistory },
+  { timeout: 5000 }
+);
       console.log("AI RESPONSE:", aiRes.data);
 
-      aiReply = aiRes.data.reply;
+      aiReply = aiRes.data?.reply || "AI service unavailable";
     } catch (err) {
        console.error("AI SERVICE ERROR FULL:", err.response?.data || err.message);
     }
@@ -81,11 +81,24 @@ export const sendMessage = async (req, res) => {
     // 🔹 4. Save AI response
    let aiMessage = null;
 
-if (aiReply !== "AI service unavailable") {
+if (typeof aiReply === "string" && aiReply.trim() !== "") {
   aiMessage = await Message.create({
     threadId,
     content: aiReply,
     role: "assistant",
+  });
+}
+
+if (!aiMessage) {
+  return res.status(200).json({
+    success: true,
+    data: {
+      userMessage,
+      aiMessage: {
+        role: "assistant",
+        content: "⚠️ AI is currently unavailable. Try again.",
+      },
+    },
   });
 }
 
