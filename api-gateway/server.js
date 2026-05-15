@@ -9,42 +9,58 @@ const app = express();
 
 app.use(cors());
 
-
-// 🔐 Auth Service
+/* =========================
+   AUTH SERVICE
+========================= */
 app.use(
   "/api/auth",
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE,
+    target: "http://127.0.0.1:5000",
     changeOrigin: true,
-    pathRewrite: (path) => {
-        return "/api/auth" + path.replace("/api/auth", "");
+    logLevel: "debug",
+    onError(err, req, res) {
+      console.error("AUTH PROXY ERROR:", err.message);
+      res.writeHead(502, {
+        "Content-Type": "text/plain",
+      });
+      res.end("Auth proxy error.");
     },
-    proxyTimeout: 10000,
-    timeout: 10000,
   })
 );
 
-// 💬 Chat Service
+/* =========================
+   CHAT SERVICE
+========================= */
 app.use(
   "/api/chat",
   createProxyMiddleware({
-    target: process.env.CHAT_SERVICE,
+    target: "http://127.0.0.1:5001",
     changeOrigin: true,
-    pathRewrite: (path) => path,
-    proxyTimeout: 10000,
-    timeout: 10000,
+    logLevel: "debug",
+    pathRewrite: {
+      "^/api/chat/threads": "/api/chat/threads",
+      "^/api/chat/messages": "/api/chat/messages",
+      "^/threads": "/api/chat/threads",
+      "^/messages": "/api/chat/messages",
+    },
+    onError(err, req, res) {
+      console.error("CHAT PROXY ERROR:", err.message);
+      res.writeHead(502, {
+        "Content-Type": "text/plain",
+      });
+      res.end("Chat proxy error.");
+    },
   })
 );
 
-// 🤖 AI Service
+/* =========================
+   AI SERVICE
+========================= */
 app.use(
   "/api/ai",
   createProxyMiddleware({
-    target: process.env.AI_SERVICE,
+    target: "http://127.0.0.1:5002",
     changeOrigin: true,
-    pathRewrite: (path) => path,
-    proxyTimeout: 10000,
-    timeout: 10000,
   })
 );
 
@@ -52,7 +68,7 @@ app.get("/", (req, res) => {
   res.send("API Gateway Running 🚀");
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5003;
 
 app.listen(PORT, () => {
   console.log(`API Gateway running on port ${PORT}`);

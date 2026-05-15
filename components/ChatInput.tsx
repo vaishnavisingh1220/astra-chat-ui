@@ -1,27 +1,15 @@
 "use client";
 
-import { Groq } from "groq-sdk";
 import { useState } from "react";
 
 type ChatInputProps = {
   onSend: (text: string) => void;
   darkMode: boolean;
-  selectedModel: string;
-  setSelectedModel: (val: string) => void;
   model: string;
   setModel: (val: string) => void;
 };
 
-
-export default function ChatInput({
-  onSend,
-  selectedModel,
-  setSelectedModel,
-  model,
-  setModel,
-  darkMode,
-  setDarkMode,
-}: any) {
+export default function ChatInput({ onSend, model, setModel, darkMode }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 

@@ -2,62 +2,78 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
-import bcrypt from "bcryptjs";
-
-import { connectDB } from "@/lib/mongodb";
-import User from "@/models/User";
 
 const handler = NextAuth({
   providers: [
-    // 🔐 EMAIL / PASSWORD LOGIN
     Credentials({
       name: "Credentials",
+
       credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
+        email: {
+          label: "Email",
+          type: "text",
+        },
+
+        password: {
+          label: "Password",
+          type: "password",
+        },
       },
 
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Missing credentials");
-        }
+  try {
+    console.log("LOGIN ATTEMPT:", credentials);
 
-        await connectDB();
+    const res = await fetch(
+      "http://127.0.0.1:5000/api/auth/login",
+      {
+        method: "POST",
 
-        const user = await User.findOne({
-          email: credentials.email,
-        });
+        headers: {
+          "Content-Type": "application/json",
+        },
 
-        if (!user || !user.passwordHash) {
-          throw new Error("User not found");
-        }
+        body: JSON.stringify({
+          email: credentials?.email,
+          password: credentials?.password,
+        }),
+      }
+    );
 
-        // 🔐 Compare hashed password
-        const isValid = await bcrypt.compare(
-          credentials.password,
-          user.passwordHash
-        );
+    console.log("STATUS:", res.status);
 
-        if (!isValid) {
-          throw new Error("Invalid password");
-        }
+    const text = await res.text();
 
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          image: user.image || null,
-        };
-      },
+    console.log("RAW RESPONSE:", text);
+
+    const data = JSON.parse(text);
+
+    console.log("PARSED DATA:", data);
+
+    if (!res.ok || !data.success) {
+      return null;
+    }
+
+    return {
+      id: data.user._id,
+      name: data.user.name,
+      email: data.user.email,
+      image: data.user.image || null,
+      accessToken: data.token,
+    };
+
+  } catch (err) {
+    console.error("AUTHORIZE ERROR:", err);
+    return null;
+  }
+}
     }),
 
-    // 🌐 GOOGLE LOGIN
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
 
-    // 🐙 GITHUB LOGIN
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
@@ -65,57 +81,28 @@ const handler = NextAuth({
   ],
 
   callbacks: {
-    // 🔥 Save OAuth users to DB
-    async signIn({ user, account }) {
-      if (!account) return false;
-
-      await connectDB();
-
-      if (account.provider !== "credentials") {
-        const existingUser = await User.findOne({
-          email: user.email,
-        });
-
-        if (!existingUser) {
-          await User.create({
-            name: user.name,
-            email: user.email,
-            image: user.image,
-            provider: account.provider,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-        } else {
-          // ✅ Optional: update existing user info
-          existingUser.name = user.name || existingUser.name;
-          existingUser.image = user.image || existingUser.image;
-          existingUser.updatedAt = new Date();
-          await existingUser.save();
-        }
-      }
-
-      return true;
-    },
-
-    // 🔥 Attach user id to JWT
     async jwt({ token, user }) {
       if (user) {
-        token.id = (user as any).id;
+        const u = user as { id?: string; accessToken?: string };
+        (token as { id?: string; accessToken?: string }).id = u.id;
+        (token as { id?: string; accessToken?: string }).accessToken = u.accessToken;
       }
+
       return token;
     },
 
-    // 🔥 Attach user id to session
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.id;
+        (session.user as { id?: string }).id = (token as { id?: string }).id;
       }
+
+      (session as { accessToken?: string }).accessToken = (token as { accessToken?: string }).accessToken;
+
       return session;
     },
 
-    // 🔥 Control redirect after login
     async redirect({ baseUrl }) {
-      return `${baseUrl}/`; // or "/chat" if you prefer
+      return `${baseUrl}/`;
     },
   },
 

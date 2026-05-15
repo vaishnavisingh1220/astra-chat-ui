@@ -1,45 +1,62 @@
+
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Message from "./Message";
 import ChatInput from "./ChatInput";
 import Sidebar from "./Sidebar";
 import TypingIndicator from "./TypingIndicator";
 import { useSession } from "next-auth/react";
 
+import API_BASE from "@/lib/api";
+
 export type MessageType = {
   _id: string;
   role: "user" | "assistant";
   content: string;
   createdAt?: string;
- sources?: { title: string; link: string }[];
- provider?: string;
+  sources?: { title: string; link: string }[];
+  provider?: string;
+};
+
+type ThreadType = {
+  _id: string;
+  title?: string;
+  userId?: string;
+  createdAt?: string;
 };
 
 export default function ChatWindow() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  console.log("SESSION:", session);
+  console.log("STATUS:", status);
+
+  const token = (session as unknown as { accessToken?: string } | null | undefined)?.accessToken;
+  console.log("TOKEN:", token);
 
   const [messages, setMessages] = useState<MessageType[]>([]);
   const [isTyping, setIsTyping] = useState(false);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    try {
+      if (typeof window === "undefined") return true;
+      const saved = localStorage.getItem("theme");
+      return saved ? saved === "dark" : true;
+    } catch {
+      return true;
+    }
+  });
 
   const [collapsed, setCollapsed] = useState(false);
 
   // 🔥 THREAD STATE
-  const [threads, setThreads] = useState<any[]>([]);
+  const [threads, setThreads] = useState<ThreadType[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [selectedModel, setSelectedModel] = useState("gpt-4");
   const [model, setModel] = useState("auto");
-
-  // 🌙 THEME
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved) setDarkMode(saved === "dark");
-  }, []);
 
   useEffect(() => {
     localStorage.setItem("theme", darkMode ? "dark" : "light");
@@ -51,168 +68,329 @@ export default function ChatWindow() {
   }, [messages, isTyping]);
 
   // =========================
-// 🧠 THREAD FUNCTIONS
-// =========================
+  // 🧠 THREAD FUNCTIONS
+  // =========================
 
-const loadThreads = async () => {
-  const res = await fetch("/api/threads");
-  const data = await res.json();
-  setThreads(data);
+ const loadThreads = useCallback(async () => {
+  try {
+    console.log("TOKEN:", token);
+
+    const res = await fetch(
+      `${API_BASE}/api/chat/threads`,
+      {
+        method: "GET",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    console.log("THREADS RESPONSE:", data);
+
+    setThreads(data.data || []);
+
+  } catch (err) {
+    console.error("Load threads error:", err);
+  }
+}, [token]);
+
+ useEffect(() => {
+  if (token) {
+    const id = setTimeout(() => {
+      loadThreads();
+    }, 0);
+
+    return () => clearTimeout(id);
+  }
+}, [status, token, loadThreads]);
+
+
+  const createThread = async () => {
+  try {
+    console.log("CREATING THREAD WITH TOKEN:", token);
+
+    const res = await fetch(
+      `${API_BASE}/api/chat/threads`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    console.log("CREATE THREAD RESPONSE:", data);
+
+   const thread = data.data || data.thread || data;
+
+console.log("THREAD OBJECT:", thread);
+
+if (!thread?._id) {
+  console.error("INVALID THREAD:", thread);
+  return;
+}
+
+    setThreads((prev) => [thread, ...prev]);
+
+    setActiveThreadId(thread._id);
+
+    setMessages([]);
+
+    return thread._id;
+
+  } catch (err) {
+    console.error("Create thread error:", err);
+  }
 };
 
-useEffect(() => {
-  loadThreads();
-}, []);
-
+/*
 const createThread = async () => {
-  console.log("creating thread"); // debug
+  try {
+    console.log("Creating thread...");
 
-  const res = await fetch("/api/threads", {
-    method: "POST",
-  });
+    const res = await fetch(
+      `${API_BASE}/api/chat/threads`,
+      {
+        method: "POST",
 
-  const data = await res.json();
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
-  setThreads((prev) => [data, ...prev]);
-  setActiveThreadId(data._id);
-  setMessages([]);
+    const data = await res.json();
 
-  return data._id;
+    console.log("CREATE THREAD RESPONSE:", data);
+
+    if (!res.ok || !data.success) {
+      console.error("CREATE THREAD FAILED:", data);
+      return null;
+    }
+
+    const thread = data.data;
+
+    if (!thread?._id) {
+      console.error("INVALID THREAD:", thread);
+      return null;
+    }
+
+    // ✅ Update state
+    setThreads((prev) => [thread, ...prev]);
+
+    setActiveThreadId(thread._id);
+
+    return thread._id;
+
+  } catch (err) {
+    console.error("CREATE THREAD ERROR:", err);
+    return null;
+  }
 };
+*/
+  const loadThreadMessages = async (id: string) => {
+    try {
+      console.log("loading thread:", id);
 
-const loadThreadMessages = async (id: string) => {
-  console.log("loading thread:", id); // debug
+      setActiveThreadId(id);
 
-  setActiveThreadId(id);
+      const res = await fetch(
+        `${API_BASE}/api/chat/messages/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-  const res = await fetch(`/api/messages?threadId=${id}`);
-  const data = await res.json();
+      const data = await res.json();
 
-  console.log("MESSAGES:", data); 
+      console.log("MESSAGES:", data);
 
-  setMessages(data || []);
-};
+      setMessages(data.data || []);
+    } catch (err) {
+      console.error("Load messages error:", err);
+    }
+  };
 
-// =========================
-// 💬 SEND MESSAGE (UPDATED)
-// =========================
 
-const sendMessage = async (text: string) => {
+
+  // =========================
+  // 💬 SEND MESSAGE
+  // =========================
+
+ const sendMessage = async (text: string) => {
   if (!text.trim()) return;
-
-  let threadId = activeThreadId;
-
-  if (!threadId) {
-    threadId = await createThread();
+  if (!token) {
+    console.error("No token available");
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: Date.now().toString(),
+        role: "assistant",
+        content: "⚠️ Authentication required. Please log in again.",
+      },
+    ]);
+    return;
   }
 
   setIsTyping(true);
 
-  // ✅ Add user message instantly
-  setMessages((prev) => [
-    ...prev,
-    {
-      _id: Date.now().toString(),
-      role: "user",
-      content: text,
-    },
-  ]);
+  let threadId = activeThreadId;
 
   try {
-    const res = await fetch("/api/messages", {
+    if (!threadId) {
+      threadId = await createThread();
+    }
+
+    if (!threadId) {
+      console.error("No thread available");
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: Date.now().toString(),
+          role: "assistant",
+          content: "⚠️ Unable to create a chat thread. Please try again.",
+        },
+      ]);
+      return;
+    }
+
+    setActiveThreadId(threadId);
+
+    const tempUserMessage = {
+      _id: Date.now().toString(),
+      role: "user" as const,
+      content: text,
+    };
+
+    setMessages((prev) => [...prev, tempUserMessage]);
+
+    console.log("TOKEN:", token);
+    console.log("SENDING MESSAGE:", { threadId, text });
+
+    const res = await fetch(`${API_BASE}/api/chat/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        threadId,
-        content: text,
-        model,
-      }),
+      body: JSON.stringify({ threadId, text }),
     });
 
-    // ✅ Handle API failure safely
-    if (!res.ok) {
-      console.error("API error:", res.status);
-      throw new Error("API failed");
-    }
+    const raw = await res.text();
+    let data: {
+      success?: boolean;
+      message?: string;
+      error?: string;
+      data?: { aiMessage?: { content?: string } };
+    } = {};
 
-    let data;
     try {
-      data = await res.json();
-      console.log("API RESPONSE FULL:", JSON.stringify(data, null, 2));
-    } catch {
-      throw new Error("Invalid JSON response");
+      if (raw) {
+        data = JSON.parse(raw) as typeof data;
+      }
+    } catch (parseError) {
+      console.error("INVALID JSON RESPONSE:", raw, parseError);
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: Date.now().toString(),
+          role: "assistant",
+          content: "⚠️ Received an invalid response from the server.",
+        },
+      ]);
+      return;
     }
 
-    const { reply, provider, sources } = data;
+    if (typeof data !== "object" || data === null) {
+      console.error("INVALID JSON RESPONSE OBJECT:", raw);
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: Date.now().toString(),
+          role: "assistant",
+          content: "⚠️ Received an invalid response from the server.",
+        },
+      ]);
+      return;
+    }
 
-    // ✅ fallback if reply missing
-    const finalReply = reply || "⚠️ No response generated";
+    console.log("STATUS:", res.status);
+    console.log("MESSAGE RESPONSE:", data);
 
-    // ✅ Add empty assistant message (stream target)
+    if (!res.ok || data.success === false) {
+      const errorMessage =
+        data?.message || data?.error || raw || "Failed to generate response";
+      console.error("MESSAGE FAILED:", errorMessage);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          _id: Date.now().toString(),
+          role: "assistant",
+          content: `⚠️ ${errorMessage}`,
+        },
+      ]);
+      return;
+    }
+
+    const aiMessage = data?.data?.aiMessage ?? {
+      role: "assistant",
+      content: data?.message || "⚠️ No response generated",
+    };
+
+    const finalReply = aiMessage?.content || "⚠️ No response generated";
+
     setMessages((prev) => [
       ...prev,
       {
         _id: "streaming",
         role: "assistant",
         content: "",
-        provider,
-        sources,
       },
     ]);
 
     let currentText = "";
-
-    // 🔥 STREAMING LOOP (safe)
     for (let i = 0; i < finalReply.length; i++) {
       currentText += finalReply[i];
-
-      await new Promise((r) => setTimeout(r, 12));
-
+      await new Promise((r) => setTimeout(r, 10));
       setMessages((prev) => {
         const updated = [...prev];
         const lastIndex = updated.length - 1;
-
         if (updated[lastIndex]?.role === "assistant") {
           updated[lastIndex] = {
             ...updated[lastIndex],
             content: currentText,
           };
         }
-
         return updated;
       });
     }
 
-    // ✅ Replace temp streaming ID safely
     setMessages((prev) =>
       prev.map((msg) =>
         msg._id === "streaming"
-          ? { ...msg, _id: Date.now().toString() }
+          ? {
+              ...msg,
+              _id: Date.now().toString(),
+            }
           : msg
       )
     );
 
-// ✅ SAVE AI MESSAGE TO DB
-await fetch("/api/messages/save", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    threadId,
-    content: currentText,
-  }),
-});
-
-    // ✅ Refresh sidebar
     loadThreads();
-
   } catch (err) {
-    console.error("Send error:", err);
-
-    // ❌ graceful error message
+    console.error("SEND MESSAGE ERROR:", err);
     setMessages((prev) => [
       ...prev,
       {
@@ -226,26 +404,97 @@ await fetch("/api/messages/save", {
   }
 };
 
-// clear 
-const handleClear = async () => {
-  if (!activeThreadId) return;
+
+/*
+const sendMessage = async (text: string) => {
+
+  if (!token) {
+  console.error("No token available");
+  return;
+}
+
+  setIsTyping(true);
 
   try {
-    await fetch(`/api/messages/clear`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ threadId: activeThreadId }),
+    let threadId = activeThreadId;
+
+    // ✅ Auto-create thread
+    if (!threadId) {
+      threadId = await createThread();
+    }
+
+    if (!threadId) {
+      console.error("No thread available");
+      return;
+    }
+
+    console.log("SENDING MESSAGE:", {
+      threadId,
+      text,
     });
 
-    setMessages([]); // clear UI
+    const res = await fetch(
+      `${API_BASE}/api/chat/messages`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          threadId,
+          text,
+        }),
+      }
+    );
+
+   const raw = await res.text();
+
+console.log("RAW RESPONSE:", raw);
+
+let data;
+
+try {
+  data = JSON.parse(raw);
+} catch (error) {
+  console.error("INVALID JSON RESPONSE:", raw, error);
+  return;
+}
+
+    console.log("MESSAGE RESPONSE:", data);
+
+    if (!res.ok || !data.success) {
+      console.error("MESSAGE FAILED:", data);
+      return;
+    }
+
+    // ✅ Add messages to UI
+    setMessages((prev) => [
+      ...prev,
+      data.data.userMessage,
+      data.data.aiMessage,
+    ]);
+
+    // ✅ Refresh threads
+    loadThreads();
 
   } catch (err) {
-    console.error("Clear failed:", err);
+    console.error("SEND MESSAGE ERROR:", err);
+  } finally {
+    setIsTyping(false);
   }
 };
+*/
 
+  // =========================
+  // 🗑 CLEAR CHAT (TEMPORARILY UI ONLY)
+  // =========================
+
+  const handleClear = async () => {
+    setMessages([]);
+  };
 
   return (
     <div
@@ -260,12 +509,8 @@ const handleClear = async () => {
         collapsed={collapsed}
         setCollapsed={setCollapsed}
         darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        /*onClear={handleClear}
-        onNewChat={handleNewChat} */ 
-        threads={threads} //
-        loadThreadMessages={loadThreadMessages} 
-        activeThreadId={activeThreadId} 
+        threads={threads}
+        activeThreadId={activeThreadId}
         onThreadClick={loadThreadMessages}
         onNewChat={createThread}
         onClear={handleClear}
@@ -297,14 +542,19 @@ const handleClear = async () => {
         {/* EMPTY STATE */}
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center flex-1 text-center">
-            <img
+            <Image
               src="/astra-avatar.png"
+              alt="Astra avatar"
+              width={80}
+              height={80}
               className="w-20 h-20 mb-4 rounded-full"
             />
 
-            <h1 className={`text-3xl font-semibold ${
-              darkMode ? "text-white" : "text-black"
-            }`}>
+            <h1
+              className={`text-3xl font-semibold ${
+                darkMode ? "text-white" : "text-black"
+              }`}
+            >
               Astra AI ✨
             </h1>
 
@@ -313,28 +563,39 @@ const handleClear = async () => {
             </p>
 
             <div className="mt-6 w-full max-w-xl">
-              <ChatInput onSend={sendMessage} darkMode={darkMode} model={model} setModel={setModel} />
+              <ChatInput
+                onSend={sendMessage}
+                darkMode={darkMode}
+                model={model}
+                setModel={setModel}
+              />
             </div>
           </div>
         ) : (
           <>
             {/* MESSAGES */}
-           <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
-  {messages.map((msg, index) => (
-    <Message
-      key={msg._id || index} // ✅ FIXED
-      msg={msg}
-      darkMode={darkMode}
-    />
-  ))}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-3">
+              {messages.map((msg, index) => (
+                <Message
+                  key={msg._id || index}
+                  msg={msg}
+                  darkMode={darkMode}
+                />
+              ))}
 
               {isTyping && <TypingIndicator />}
+
               <div ref={bottomRef} />
             </div>
 
             {/* INPUT */}
             <div className="p-4 border-t border-white/10">
-              <ChatInput onSend={sendMessage} darkMode={darkMode} model={model} setModel={setModel} />
+              <ChatInput
+                onSend={sendMessage}
+                darkMode={darkMode}
+                model={model}
+                setModel={setModel}
+              />
             </div>
           </>
         )}

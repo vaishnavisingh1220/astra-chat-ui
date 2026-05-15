@@ -9,67 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* =========================
-   🔹 GROQ (Primary)
-========================= */
-const callGroq = async (message) => {
-  const res = await axios.post(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      model: "llama3-70b-8192",
-      messages: [
-        { role: "system", content: "You are a helpful AI assistant." },
-        { role: "user", content: message },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  return res.data.choices[0].message.content;
-};
-
-/* =========================
-   🔹 OPENROUTER (Fallback)
-========================= */
-const callOpenRouter = async (message) => {
-  const res = await axios.post(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      model: "mistralai/mixtral-8x7b-instruct",
-      messages: [
-        { role: "system", content: "You are a helpful AI assistant." },
-        { role: "user", content: message },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  return res.data.choices[0].message.content;
-};
-
-/* =========================
-   🔹 SERP API (Web Search)
-========================= */
-const callSerpAPI = async (query) => {
-  const res = await axios.get("https://serpapi.com/search.json", {
-    params: {
-      q: query,
-      api_key: process.env.SERPAPI_KEY,
-    },
-  });
-
-  return res.data.organic_results?.[0]?.snippet || "No results found";
-};
+app.get("/test", (req, res) => {
+  res.send("AI Service Running 🚀");
+});
 
 /* =========================
    🎯 MAIN ROUTE
@@ -88,12 +30,16 @@ app.post("/generate", async (req, res) => {
     let reply = "";
 
     try {
+      if (!process.env.GROQ_API_KEY) {
+        throw new Error("Missing GROQ_API_KEY");
+      }
+
       console.log("Calling GROQ...");
 
       const groqRes = await axios.post(
         "https://api.groq.com/openai/v1/chat/completions",
         {
-          model:  "llama-3.1-8b-instant",
+          model: "llama-3.1-8b-instant",
           messages,
         },
         {
@@ -101,15 +47,19 @@ app.post("/generate", async (req, res) => {
             Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
             "Content-Type": "application/json",
           },
+          timeout: 5000,
         }
       );
 
       reply = groqRes.data.choices[0].message.content;
-
     } catch (err) {
       console.log("❌ Groq failed:", err.response?.data || err.message);
 
       try {
+        if (!process.env.OPENROUTER_API_KEY) {
+          throw new Error("Missing OPENROUTER_API_KEY");
+        }
+
         console.log("🔁 Falling back to OpenRouter...");
 
         const openRes = await axios.post(
@@ -123,30 +73,33 @@ app.post("/generate", async (req, res) => {
               Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
               "Content-Type": "application/json",
             },
+            timeout: 5000,
           }
         );
 
         reply = openRes.data.choices[0].message.content;
-
       } catch (err2) {
         console.log("❌ OpenRouter failed:", err2.response?.data || err2.message);
         console.log("🌐 Falling back to SERP API...");
 
         const lastUserMessage = messages[messages.length - 1].content;
 
-        const serpRes = await axios.get(
-          "https://serpapi.com/search.json",
-          {
+        try {
+          const serpRes = await axios.get("https://serpapi.com/search.json", {
             params: {
               q: lastUserMessage,
               api_key: process.env.SERPAPI_KEY,
             },
-          }
-        );
+            timeout: 5000,
+          });
 
-        reply =
-          serpRes.data.organic_results?.[0]?.snippet ||
-          "No results found";
+          reply =
+            serpRes.data.organic_results?.[0]?.snippet ||
+            "No results found";
+        } catch (err3) {
+          console.log("❌ SerpAPI failed:", err3.response?.data || err3.message);
+          reply = "AI service unavailable";
+        }
       }
     }
 

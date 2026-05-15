@@ -15,9 +15,10 @@ export const createThread = async (req, res) => {
     }
 
     const thread = await Thread.create({
-      userId,
-      participants: participants || [],
-    });
+  userId,
+  participants: participants || [],
+  title: "New Chat",
+});
 
     res.status(201).json({
       success: true,

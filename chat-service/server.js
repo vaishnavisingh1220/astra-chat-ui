@@ -13,10 +13,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/threads", threadRoutes);
-app.use("/api/messages", messageRoutes);
+app.use("/api/chat/threads", threadRoutes);
+app.use("/api/chat/messages", messageRoutes);
 
-app.get("/", (req, res) => {
+app.get("/test", (req, res) => {
   res.send("Chat Service Running 🚀");
 });
 

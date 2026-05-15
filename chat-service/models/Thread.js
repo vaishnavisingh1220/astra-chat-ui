@@ -12,6 +12,8 @@ const ThreadSchema = new mongoose.Schema(
       default: "New Chat",
     },
   },
+
+  
   { timestamps: true }
 );
 

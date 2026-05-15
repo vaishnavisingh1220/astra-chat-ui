@@ -1,23 +1,23 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { useState } from "react";
 
 type Thread = {
   _id: string;
-  title: string;
+  title?: string;
+  userId?: string;
+  createdAt?: string;
 };
 
 type SidebarProps = {
   collapsed: boolean;
   setCollapsed: (val: boolean) => void;
   darkMode: boolean;
-  setDarkMode: (val: boolean) => void;
   onClear: () => void;
   onNewChat: () => void;
 
-  threads: any[];
-  loadThreadMessages: (id: string) => void;
+  threads: Thread[];
   activeThreadId: string | null;
   onThreadClick: (id: string) => void;
 };
@@ -26,16 +26,12 @@ export default function Sidebar({
   collapsed,
   setCollapsed,
   darkMode,
-  setDarkMode,
   onClear,
   onNewChat,
   threads,
-  loadThreadMessages,
   activeThreadId,
-  onThreadClick
+  onThreadClick,
 }: SidebarProps) {
-  const { data: session } = useSession();
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [search, setSearch] = useState("");
@@ -69,22 +65,8 @@ export default function Sidebar({
     }
   };
 
-  // 🧹 CLEAR ALL THREADS
-  const handleClearAll = async () => {
-    try {
-      await fetch(`/api/threads/clear`, {
-        method: "DELETE",
-      });
-
-      onClear();
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const filteredThreads = threads.filter((t) =>
-  t.title.toLowerCase().includes(search.toLowerCase())
+  (t.title || "").toLowerCase().includes(search.toLowerCase())
 );
 
   return (
@@ -205,7 +187,7 @@ export default function Sidebar({
                   />
                 ) : (
                   <span className="truncate text-sm">
-                    {thread.title || "New Chat"}
+                    {thread?.title || "New Chat"}
                   </span>
                 )}
               </>
@@ -218,7 +200,7 @@ export default function Sidebar({
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditingId(thread._id);
-                    setNewTitle(thread.title);
+                    setNewTitle(thread.title || "");
                   }}
                   className="text-yellow-400 hover:text-yellow-600"
                 >
@@ -258,19 +240,30 @@ export default function Sidebar({
       </div>
     )}
   </div>
-    {/* 🔥 LOGOUT BUTTON */}
-  {!collapsed && (
-    <button
-      onClick={() => signOut({ callbackUrl: "/login" })}
-      className={`w-full py-2 rounded-lg text-sm font-medium transition
+
+  <div className="mt-3 space-y-2">
+    {!collapsed && (
+      <button
+        onClick={() => { onClear(); window.location.reload(); }}
+        className="w-full py-2 rounded-lg text-sm font-medium transition bg-red-600 text-white"
+      >
+        Clear All
+      </button>
+    )}
+
+    {!collapsed && (
+      <button
+        onClick={() => signOut({ callbackUrl: "/login" })}
+        className={`w-full py-2 rounded-lg text-sm font-medium transition
 ${
   darkMode
     ? "bg-gradient-to-r from-[#020617] to-purple-600 text-white hover:opacity-90"
     : "bg-gradient-to-r from-purple-100 to-purple-300 text-black hover:opacity-90"
 }`}>
-      Logout
-    </button>
-  )}
+        Logout
+      </button>
+    )}
+  </div>
 </div>
 </div>
       </div>
