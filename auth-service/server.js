@@ -1,9 +1,9 @@
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/authRoutes.js";
+import connectDB from "./config/db.js";
 
 dotenv.config();
 
@@ -23,14 +23,13 @@ app.get("/test", (req, res) => {
   res.send("Auth Service Running 🚀");
 });
 
-console.log(process.env.PORT);
-console.log(process.env.MONGO_URI);
+const PORT = process.env.PORT || 5000;
 
-mongoose.connect(process.env.MONGO_URI)
+connectDB()
   .then(() => {
-    console.log("MongoDB Connected");
-    app.listen(process.env.PORT, () =>
-      console.log(`Auth Service running on port ${process.env.PORT}`)
-    );
+    app.listen(PORT, () => console.log(`Auth Service running on port ${PORT}`));
   })
-  .catch(err => console.log(err));
+  .catch((err) => {
+    console.error("Failed to start Auth Service:", err);
+    process.exit(1);
+  });

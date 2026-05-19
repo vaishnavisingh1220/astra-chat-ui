@@ -9,6 +9,17 @@ const app = express();
 
 app.use(cors());
 
+// Log incoming requests (method, url, auth presence)
+app.use((req, res, next) => {
+  const authHeader = req.headers.authorization || "";
+  const hasAuth = authHeader ? "with-auth" : "no-auth";
+  const masked = authHeader
+    ? `${authHeader.slice(0, 12)}...${authHeader.slice(-8)}`
+    : "<none>";
+  console.log("[API-GW]", req.method, req.url, hasAuth, "auth:", masked);
+  next();
+});
+
 /* =========================
    AUTH SERVICE
 ========================= */
@@ -18,12 +29,14 @@ app.use(
     target: "http://127.0.0.1:5000",
     changeOrigin: true,
     logLevel: "debug",
+    pathRewrite: {
+      "^/": "/api/auth/",
+    },
     onError(err, req, res) {
       console.error("AUTH PROXY ERROR:", err.message);
-      res.writeHead(502, {
-        "Content-Type": "text/plain",
-      });
-      res.end("Auth proxy error.");
+      res.statusCode = 502;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: false, message: "Auth proxy error", details: err.message }));
     },
   })
 );
@@ -38,17 +51,13 @@ app.use(
     changeOrigin: true,
     logLevel: "debug",
     pathRewrite: {
-      "^/api/chat/threads": "/api/chat/threads",
-      "^/api/chat/messages": "/api/chat/messages",
-      "^/threads": "/api/chat/threads",
-      "^/messages": "/api/chat/messages",
+      "^/": "/api/chat/",
     },
     onError(err, req, res) {
       console.error("CHAT PROXY ERROR:", err.message);
-      res.writeHead(502, {
-        "Content-Type": "text/plain",
-      });
-      res.end("Chat proxy error.");
+      res.statusCode = 502;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ success: false, message: "Chat proxy error", details: err.message }));
     },
   })
 );
@@ -61,6 +70,9 @@ app.use(
   createProxyMiddleware({
     target: "http://127.0.0.1:5002",
     changeOrigin: true,
+    pathRewrite: {
+      "^/": "/api/ai/",
+    },
   })
 );
 

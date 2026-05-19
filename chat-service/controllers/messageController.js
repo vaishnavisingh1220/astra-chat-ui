@@ -35,7 +35,7 @@ export const sendMessage = async (req, res) => {
       });
     }
 
-    if (thread.userId !== userId) {
+    if (thread.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
         message: "Not authorized to access this thread",
@@ -67,7 +67,7 @@ export const sendMessage = async (req, res) => {
       console.log("Sending to AI:", formattedHistory);
 
       const aiRes = await axios.post(
-  `${process.env.AI_SERVICE_URL}/generate`,
+  `${process.env.AI_SERVICE_URL}/api/ai/generate`,
   { messages: formattedHistory },
   { timeout: 5000 }
 );
@@ -151,7 +151,7 @@ export const getMessages = async (req, res) => {
       });
     }
 
-    if (thread.userId !== userId) {
+    if (thread.userId.toString() !== userId.toString()) {
       return res.status(403).json({
         success: false,
         message: "Not authorized",
