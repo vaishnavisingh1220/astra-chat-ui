@@ -33,7 +33,8 @@ export default function Message({
         <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">
           <ReactMarkdown
             components={{
-              code({ inline, className, children, ...props }: { inline?: boolean; className?: string; children: React.ReactNode[]; [key: string]: unknown }) {
+              code(props: any) {
+                const { inline, className, children, ...rest } = props;
                 const match = /language-(\w+)/.exec(className || "");
 
                 return !inline && match ? (
@@ -52,7 +53,7 @@ export default function Message({
                       language={match[1]}
                       PreTag="div"
                       className="rounded-lg text-xs"
-                      {...props}
+                      {...rest}
                     >
                       {String(children).replace(/\n$/, "")}
                     </SyntaxHighlighter>
@@ -80,7 +81,7 @@ export default function Message({
         )}
 
         {/* SOURCES */}
-        {msg.sources?.length > 0 && (
+        {msg.sources && msg.sources.length > 0 && (
           <div className="mt-2 text-xs">
             <div className="font-semibold">Sources:</div>
             {msg.sources.map((s, i) => (
