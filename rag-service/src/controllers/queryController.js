@@ -6,7 +6,8 @@ export const askQuestion = async (req, res) => {
   try {
     console.log("BODY =", req.body);
 
-    const { question } = req.body;
+    const { question, pdfNames } = req.body;
+    console.log("PDF NAMES:", pdfNames);
 
     if (!question) {
       return res.status(400).json({
@@ -27,8 +28,9 @@ export const askQuestion = async (req, res) => {
     ========================= */
 
     const results = await searchSimilarChunks(
-      queryEmbedding
-    );
+  queryEmbedding,
+  pdfNames?.[0]
+);
 
     const retrievedChunks = results.documents[0];
 

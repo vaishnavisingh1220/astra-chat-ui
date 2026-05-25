@@ -7,11 +7,15 @@ type ChatInputProps = {
   darkMode: boolean;
   model: string;
   setModel: (val: string) => void;
+  onFilesSelected?: (files: File[]) => void;
+  attachedFiles?: string[];
+  setAttachedFiles: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
-export default function ChatInput({ onSend, model, setModel, darkMode }: ChatInputProps) {
+export default function ChatInput({ onSend, model, setModel, darkMode, onFilesSelected, attachedFiles, setAttachedFiles }: ChatInputProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  
 
   const handleSend = async () => {
   if (!input.trim() || loading) return;
@@ -50,15 +54,32 @@ export default function ChatInput({ onSend, model, setModel, darkMode }: ChatInp
           <option value="serpapi">🌐 SerpApi</option>
         </select>
 
-        {/* ATTACH */}
-        <label
-          className={`text-xs cursor-pointer flex items-center gap-1
-          ${darkMode ? "text-gray-400" : "text-gray-500"}`}
-        >
-          📎 Attach
-          <input type="file" className="hidden" />
-        </label>
+        
       </div>
+
+            {attachedFiles.length > 0 && (
+  <div className="flex flex-wrap gap-2 mb-2">
+    {attachedFiles.map((file, index) => (
+      <div
+        key={index}
+        className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-lg text-sm"
+      >
+        📄 {file}
+
+        <button
+          onClick={() =>
+            setAttachedFiles((prev) =>
+              prev.filter((_, i) => i !== index)
+            )
+          }
+          className="text-red-400"
+        >
+          ✕
+        </button>
+      </div>
+    ))}
+  </div>
+)}
 
       {/* 💬 INPUT BAR */}
       <div
@@ -82,6 +103,26 @@ export default function ChatInput({ onSend, model, setModel, darkMode }: ChatInp
           }`}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
         />
+
+        <label className="cursor-pointer">
+  <input
+    type="file"
+    accept=".pdf"
+    multiple
+    hidden
+   onChange={(e) => {
+  if (!e.target.files) return;
+
+  const files = Array.from(e.target.files);
+
+  onFilesSelected?.(files);
+}}
+  />
+
+  <div className="p-2 rounded-lg hover:bg-white/10 transition">
+    📎
+  </div>
+</label>
 
         {/* 🚀 SEND BUTTON */}
         <button

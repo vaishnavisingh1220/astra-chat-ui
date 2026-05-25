@@ -4,6 +4,7 @@
 import API_BASE from "@/lib/api";
 import { signOut } from "next-auth/react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 
 type Thread = {
@@ -38,14 +39,15 @@ export default function Sidebar({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [search, setSearch] = useState("");
-
+  const router = useRouter();
+  
   // 🗑 DELETE THREAD
   const handleDeleteThread = async (id: string) => {
     try {
       await fetch(`${API_BASE}/api/chat/threads/${id}`, {
   method: "DELETE",
 });
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       console.error(err);
     }
@@ -62,7 +64,7 @@ export default function Sidebar({
 
       setEditingId(null);
       setNewTitle("");
-      window.location.reload();
+      router.refresh();
     } catch (err) {
       console.error(err);
     }

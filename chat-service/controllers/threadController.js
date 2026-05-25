@@ -59,3 +59,56 @@ export const getThreads = async (req, res) => {
     });
   }
 };
+
+// ✏️ Rename Thread
+export const renameThread = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    const updatedThread =
+      await Thread.findByIdAndUpdate(
+        id,
+        { title },
+        { new: true }
+      );
+
+    res.json({
+      success: true,
+      data: updatedThread,
+    });
+
+  } catch (error) {
+    console.error("RENAME THREAD ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+
+// 🗑️ Delete Thread
+export const deleteThread = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await Thread.findByIdAndDelete(id);
+
+    await Message.deleteMany({ threadId: id });
+
+    res.json({
+      success: true,
+      message: "Thread deleted",
+    });
+
+  } catch (error) {
+    console.error("DELETE THREAD ERROR:", error);
+
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

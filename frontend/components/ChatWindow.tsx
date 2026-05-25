@@ -73,9 +73,7 @@ export default function ChatWindow() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const [model, setModel] = useState("auto");
-
-  const [uploads, setUploads] = useState<UploadedFile[]>([]);
-  const [uploadsLoading, setUploadsLoading] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
 
   type CryptoWithRandomUUID = typeof crypto & {
     randomUUID?: () => string;
@@ -109,27 +107,7 @@ export default function ChatWindow() {
     });
   }, [messages, isTyping]);
 
-  const fetchUploads = async () => {
-    try {
-      setUploadsLoading(true);
-      const response = await fetch(
-        `${API_BASE}/api/rag/uploads`
-      );
-      const data = await response.json();
-      setUploads(data.files || []);
-    } catch (error) {
-      console.error("Failed to fetch uploads:", error);
-    } finally {
-      setUploadsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchUploads();
-    const interval = setInterval(fetchUploads, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
+  
   // =========================
   // LOAD THREADS
   // =========================
@@ -279,6 +257,15 @@ export default function ChatWindow() {
 
       setMessages((prev) => [...prev, userMessage]);
 
+      console.log("CURRENT selectedFiles:", selectedFiles);
+
+      console.log("FINAL THREAD:", threadId);
+
+console.log(
+  "FINAL selectedFiles:",
+  selectedFiles
+);
+
       const res = await fetch(
         `${API_BASE}/api/chat/messages`,
         {
@@ -290,8 +277,10 @@ export default function ChatWindow() {
           },
 
           body: JSON.stringify({
-            threadId,
+            threadId: threadId,
             text,
+            useRag: selectedFiles.length > 0,
+            pdfNames: selectedFiles,
           }),
         }
       );
@@ -333,31 +322,41 @@ export default function ChatWindow() {
   // =========================
 
   const handlePDFUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const selectedFile = e.target.files?.[0];
+  files: File[]
+) => {
+  try {
+    setUploading(true);
 
-    if (!selectedFile) return;
+    const uploadedNames: string[] = [];
 
-    try {
-      setUploading(true);
+    for (const file of files) {
+      const data = await uploadPDF(file);
 
-      const data = await uploadPDF(selectedFile);
-
-      alert(data.message || "PDF uploaded successfully");
-      await fetchUploads();
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Upload failed";
-
-      console.error("Upload error:", error);
-      alert(`Upload failed: ${message}`);
-    } finally {
-      setUploading(false);
+      uploadedNames.push(
+        data.filename
+      );
     }
-  };
+      
+
+    // ✅ Store uploaded PDF names
+    setSelectedFiles(uploadedNames);
+
+    console.log(
+  "UPDATED selectedFiles:",
+  uploadedNames
+);
+
+  } catch (error) {
+    console.error(
+      "Upload error:",
+      error
+    );
+
+    alert("Upload failed");
+  } finally {
+    setUploading(false);
+  }
+};
 
   // =========================
   // CLEAR CHAT
@@ -408,20 +407,8 @@ export default function ChatWindow() {
           </h1>
 
           <div className="flex items-center gap-3">
-            {/* PDF Upload */}
-
-            <label className="cursor-pointer bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-white">
-              {uploading
-                ? "Uploading..."
-                : "Upload PDF"}
-
-              <input
-                type="file"
-                accept=".pdf"
-                hidden
-                onChange={handlePDFUpload}
-              />
-            </label>
+            
+          
 
             {/* Theme */}
 
@@ -462,62 +449,12 @@ export default function ChatWindow() {
                 darkMode={darkMode}
                 model={model}
                 setModel={setModel}
+                onFilesSelected={handlePDFUpload}
+                attachedFiles={selectedFiles}
+                setAttachedFiles={setSelectedFiles}
               />
             </div>
 
-            {/* UPLOADED FILES LIST */}
-            {uploads.length > 0 && (
-              <div className="mt-8 w-full max-w-2xl">
-                <h2 className="text-lg font-semibold mb-3 text-gray-300">
-                  📁 Recent Uploads
-                </h2>
-                <div
-                  className={`rounded-lg border ${
-                    darkMode
-                      ? "border-white/20 bg-white/5"
-                      : "border-gray-300 bg-gray-50"
-                  } max-h-48 overflow-y-auto`}
-                >
-                  <div className="divide-y divide-white/10">
-                    {uploads
-                      .slice()
-                      .reverse()
-                      .slice(0, 8)
-                      .map((file, idx) => (
-                        <div
-                          key={file.name}
-                          className={`p-3 flex items-center justify-between hover:${
-                            darkMode ? "bg-white/10" : "bg-gray-100"
-                          } transition`}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">
-                              {file.name.replace(
-                                /^\d+-/,
-                                ""
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {(file.size / 1024).toFixed(1)}{" "}
-                              KB • &nbsp;
-                              {new Date(
-                                file.modifiedAt
-                              ).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <a
-                            href={`${API_BASE}/rag/uploads/${file.name}`}
-                            download={file.name}
-                            className="ml-3 px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white whitespace-nowrap"
-                          >
-                            Download
-                          </a>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <>
@@ -545,6 +482,8 @@ export default function ChatWindow() {
                 darkMode={darkMode}
                 model={model}
                 setModel={setModel}
+                attachedFiles={selectedFiles}
+                setAttachedFiles={setSelectedFiles}
               />
             </div>
           </>

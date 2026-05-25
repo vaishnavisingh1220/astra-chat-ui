@@ -73,6 +73,7 @@ const cosineSimilarity = (a, b) => {
 
 export const searchSimilarChunks = async (
   queryEmbedding,
+  pdfName,
   topK = 5
 ) => {
   try {
@@ -86,32 +87,60 @@ export const searchSimilarChunks = async (
       };
     }
 
-    // Calculate similarities
-    const similarities = collection.embeddings.map((emb, idx) => ({
-      index: idx,
-      similarity: cosineSimilarity(queryEmbedding, emb),
-    }));
+    // ✅ Filter chunks from selected PDF
+    const filteredIndexes =
+      collection.metadatas
+        .map((meta, idx) => ({
+          meta,
+          idx,
+        }))
+        .filter(
+          (item) =>
+            item.meta.source === pdfName
+        );
 
-    // Sort by similarity (descending) and get top K
+    // ✅ Similarity calculation
+    const similarities =
+      filteredIndexes.map((item) => ({
+        index: item.idx,
+
+        similarity: cosineSimilarity(
+          queryEmbedding,
+          collection.embeddings[item.idx]
+        ),
+      }));
+
+    // ✅ Sort best matches
     const topResults = similarities
-      .sort((a, b) => b.similarity - a.similarity)
+      .sort(
+        (a, b) =>
+          b.similarity - a.similarity
+      )
       .slice(0, topK);
 
-    const resultDocuments = topResults.map(
-      (r) => collection.documents[r.index]
-    );
-    const resultMetadatas = topResults.map(
-      (r) => collection.metadatas[r.index]
-    );
-    const resultDistances = topResults.map(
-      (r) => 1 - r.similarity
-    );
+    const resultDocuments =
+      topResults.map(
+        (r) =>
+          collection.documents[r.index]
+      );
+
+    const resultMetadatas =
+      topResults.map(
+        (r) =>
+          collection.metadatas[r.index]
+      );
+
+    const resultDistances =
+      topResults.map(
+        (r) => 1 - r.similarity
+      );
 
     return {
       documents: [resultDocuments],
       metadatas: [resultMetadatas],
       distances: [resultDistances],
     };
+
   } catch (error) {
     console.error(
       "❌ Retrieval Error:",

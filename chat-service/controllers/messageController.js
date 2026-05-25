@@ -6,7 +6,12 @@ import axios from "axios";
 // 📩 Send Message (Authenticated + AI + Memory)
 export const sendMessage = async (req, res) => {
   try {
-    const { threadId, text } = req.body || {};
+    const { threadId, text , useRag, pdfNames } = req.body || {};
+
+    console.log("REQ BODY:", req.body);
+
+console.log("PDF NAMES:", pdfNames);
+
     const userId = req.user.userId; // ✅ from JWT
 
     // ✅ Validate required fields
@@ -49,6 +54,19 @@ export const sendMessage = async (req, res) => {
       role: "user",
     });
 
+    // 🧠 Auto-generate title from first message
+if (
+  !thread.title ||
+  thread.title === "New Chat"
+) {
+  thread.title = text
+    .split(" ")
+    .slice(0, 5)
+    .join(" ");
+
+  await thread.save();
+}
+
     // 🔹 2. Fetch last messages for memory
     const history = await Message.find({ threadId })
       .sort({ createdAt: 1 })
@@ -62,13 +80,73 @@ export const sendMessage = async (req, res) => {
 
     // 🔹 3. Call AI Service
     let aiReply = "AI service unavailable";
+    let ragContext = "";
 
+    // 🔍 Fetch RAG context if enabled
+if (useRag && pdfNames && pdfNames.length > 0) {
+  try {
+
+    console.log("RAG REQUEST:");
+console.log({
+  question: text,
+  pdfNames,
+});
+
+    const ragRes = await axios.post(
+      
+      `${process.env.RAG_SERVICE_URL}/api/rag/ask`,
+      {
+        question: text,
+        pdfNames,
+      }
+    );
+
+    console.log(
+  "RAG RESPONSE:",
+  ragRes.data
+);
+
+ ragContext =
+  ragRes.data?.retrievedChunks
+    ?.join("\n\n") || "";
+
+  } catch (ragError) {
+    console.error(
+      "RAG ERROR:",
+      ragError.message
+    );
+  }
+}
     try {
       console.log("Sending to AI:", formattedHistory);
 
       const aiRes = await axios.post(
   `${process.env.AI_SERVICE_URL}/api/ai/generate`,
-  { messages: formattedHistory },
+  {
+    messages: [
+      {
+        role: "system",
+
+        content: `
+You are a PDF assistant.
+
+Use the following retrieved PDF context to answer the user's question.
+
+PDF Context:
+${ragContext}
+
+If the answer exists in the context, answer naturally and clearly.
+        `,
+      },
+
+      ...formattedHistory,
+
+      {
+        role: "user",
+        content: text,
+      },
+    ],
+  },
   { timeout: 5000 }
 );
       console.log("AI RESPONSE:", aiRes.data);

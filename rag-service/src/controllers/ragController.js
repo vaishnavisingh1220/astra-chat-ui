@@ -94,10 +94,10 @@ export const uploadPDF = async (req, res, next) => {
       );
 
       await storeEmbeddings(
-        chunks,
-        embeddings,
-        req.file.originalname
-      );
+  chunks,
+  embeddings,
+  req.file.filename
+);
     } catch (err) {
       console.error("CHROMA STORE ERROR =", err.message);
       return res.status(500).json({
@@ -111,12 +111,14 @@ export const uploadPDF = async (req, res, next) => {
        RESPONSE
     ========================= */
 
-    res.status(200).json({
-      success: true,
-      message: "Embeddings stored successfully",
-      totalChunks: embeddedChunks.length,
-      sample: embeddedChunks[0],
-    });
+   res.status(200).json({
+  success: true,
+  message: "Embeddings stored successfully",
+
+  filename: req.file.filename,
+
+  totalChunks: embeddedChunks.length,
+});
   } catch (error) {
     console.error("CONTROLLER ERROR =", error.message);
     console.error("Stack:", error.stack);
