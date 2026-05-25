@@ -1,12 +1,13 @@
 import { generateEmbedding } from "../services/embeddingService.js";
 import { searchSimilarChunks } from "../services/chromaService.js";
-import {generateAnswer} from "../services/answerService.js";
 
 export const askQuestion = async (req, res) => {
   try {
+
     console.log("BODY =", req.body);
 
     const { question, pdfNames } = req.body;
+
     console.log("PDF NAMES:", pdfNames);
 
     if (!question) {
@@ -28,18 +29,12 @@ export const askQuestion = async (req, res) => {
     ========================= */
 
     const results = await searchSimilarChunks(
-  queryEmbedding,
-  pdfNames?.[0]
-);
-
-    const retrievedChunks = results.documents[0];
-
-    const context = retrievedChunks.join("\n\n");
-
-    const answer = await generateAnswer(
-      question,
-      context
+      queryEmbedding,
+      pdfNames?.[0]
     );
+
+    const retrievedChunks =
+      results.documents?.[0] || [];
 
     /* =========================
        RESPONSE
@@ -47,12 +42,14 @@ export const askQuestion = async (req, res) => {
 
     res.status(200).json({
       success: true,
+
       question,
-      results,
-      answer,
-      retrievedChunks,
+
+      context: retrievedChunks,
     });
+
   } catch (error) {
+
     console.error("QUERY ERROR =", error);
 
     res.status(500).json({

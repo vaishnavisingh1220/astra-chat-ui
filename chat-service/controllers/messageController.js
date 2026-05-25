@@ -107,7 +107,7 @@ console.log({
 );
 
  ragContext =
-  ragRes.data?.retrievedChunks
+  ragRes.data?.context
     ?.join("\n\n") || "";
 
   } catch (ragError) {

@@ -1,0 +1,6 @@
+agno
+openai
+fastapi
+uvicorn
+requests
+python-dotenv
