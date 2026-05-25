@@ -1,6 +1,7 @@
 import express from "express";
 import upload from "../middleware/uploadMiddleware.js";
-import { uploadPDF } from "../controllers/ragController.js";
+import { uploadPDF, listUploads, downloadUpload } from "../controllers/ragController.js";
+import { askQuestion } from "../controllers/queryController.js";
 
 const router = express.Router();
 
@@ -24,5 +25,15 @@ router.post(
   upload.single("pdf"),
   uploadPDF
 );
+
+/* uploads listing + download */
+router.get("/uploads", listUploads);
+router.get("/uploads/:name", downloadUpload);
+
+/* =========================
+   ASK QUESTION
+========================= */
+
+router.post("/ask", askQuestion);
 
 export default router;

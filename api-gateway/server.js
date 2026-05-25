@@ -76,6 +76,28 @@ app.use(
   })
 );
 
+// RAG service
+app.use(
+  "/api/rag",
+  createProxyMiddleware({
+    target: process.env.RAG_SERVICE,
+    changeOrigin: true,
+    pathRewrite: {
+      "^/": "/api/rag/",
+    },
+    onError(err, req, res) {
+      console.error("RAG PROXY ERROR:", err.message);
+      res.statusCode = 502;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({
+        success: false,
+        message: "RAG service error",
+        details: err.message
+      }));
+    },
+  })
+);
+
 app.get("/", (req, res) => {
   res.send("API Gateway Running 🚀");
 });

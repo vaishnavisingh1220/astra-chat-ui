@@ -1,0 +1,25 @@
+◇ injected env (4) from .env // tip: ⌘ enable debugging { debug: true }
+RAG Service running on port 5004
+UPLOAD RECEIVED: {
+  originalname: 'Vaishnavi Singh N Resume.pdf',
+  mimetype: 'application/pdf',
+  size: 67400,
+  path: 'd:\\chat-ui\\astra-chat-ui\\rag-service\\src\\uploads\\1779283601042-Vaishnavi Singh N Resume.pdf'
+}
+✅ Embeddings Stored in ChromaDB
+UPLOAD RECEIVED: {
+  originalname: 'Profile 4 - Deloitte India_T&T_EAD_ADMM_Analyst_JD.pdf',
+  mimetype: 'application/pdf',
+  size: 174746,
+  path: 'd:\\chat-ui\\astra-chat-ui\\rag-service\\src\\uploads\\1779283930156-Profile 4 - Deloitte India_T&T_EAD_ADMM_Analyst_JD.pdf'
+}
+Warning: TT: undefined function: 32
+✅ Embeddings Stored in ChromaDB
+UPLOAD RECEIVED: {
+  originalname: 'Profile 4 - Deloitte India_T&T_EAD_ADMM_Analyst_JD.pdf',
+  mimetype: 'application/pdf',
+  size: 174746,
+  path: 'd:\\chat-ui\\astra-chat-ui\\rag-service\\src\\uploads\\1779284217261-Profile 4 - Deloitte India_T&T_EAD_ADMM_Analyst_JD.pdf'
+}
+Warning: TT: undefined function: 32
+✅ Embeddings Stored in ChromaDB
