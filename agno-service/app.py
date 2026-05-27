@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from agents.rag_agent import rag_agent
+from tools.rag_tool import search_documents
 
 app = FastAPI()
 
@@ -15,15 +16,16 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat(req: ChatRequest):
 
-    final_prompt = f"""
-    User Question:
-    {req.message}
+    def document_tool(query: str):
 
-    Uploaded PDFs:
-    {req.pdfNames}
-    """
+        return search_documents(
+            query=query,
+            pdfNames=req.pdfNames
+        )
 
-    response = rag_agent.run(final_prompt)
+    rag_agent.tools = [document_tool]
+
+    response = rag_agent.run(req.message)
 
     return {
         "response": response.content

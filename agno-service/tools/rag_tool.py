@@ -13,7 +13,9 @@ def search_documents(
     pdfNames: list[str] = []
 ) -> str:
 
-    print("RAG TOOL CALLED")
+    print("\n===== RAG TOOL CALLED =====")
+    print("QUERY:", query)
+    print("PDFS:", pdfNames)
 
     try:
 
@@ -30,13 +32,23 @@ def search_documents(
 
         data = response.json()
 
+        print("RAG RESPONSE:", data)
+
         context = data.get("context", [])
 
         if not context:
             return "No relevant document context found."
 
-        return "\n\n".join(context)
+        combined_context = "\n\n".join(context)
+
+        return f"""
+Retrieved Document Context:
+
+{combined_context}
+"""
 
     except Exception as e:
+
+        print("RAG TOOL ERROR:", str(e))
 
         return f"RAG tool error: {str(e)}"

@@ -1,9 +1,11 @@
 export const chunkText = (
   text,
-  chunkSize = 500,
-  overlap = 100
+  chunkSize = 800,
+  overlap = 150
 ) => {
+
   try {
+
     /* =========================
        CLEAN TEXT
     ========================= */
@@ -21,21 +23,54 @@ export const chunkText = (
     let start = 0;
 
     /* =========================
-       CREATE CHUNKS
+       CREATE SEMANTIC CHUNKS
     ========================= */
 
     while (start < cleanedText.length) {
-      const end = start + chunkSize;
 
-      const chunk = cleanedText.slice(start, end);
+      let end = start + chunkSize;
 
-      chunks.push(chunk);
+      // ✅ avoid cutting sentences badly
+      if (end < cleanedText.length) {
 
+        const lastPeriod =
+          cleanedText.lastIndexOf(".", end);
+
+        const lastQuestion =
+          cleanedText.lastIndexOf("?", end);
+
+        const lastExclamation =
+          cleanedText.lastIndexOf("!", end);
+
+        const bestEnd = Math.max(
+          lastPeriod,
+          lastQuestion,
+          lastExclamation
+        );
+
+        // ✅ only adjust if valid
+        if (bestEnd > start) {
+          end = bestEnd + 1;
+        }
+      }
+
+      const chunk = cleanedText
+        .slice(start, end)
+        .trim();
+
+      // ✅ ignore tiny junk chunks
+      if (chunk.length > 100) {
+        chunks.push(chunk);
+      }
+
+      // ✅ overlap preserves context continuity
       start += chunkSize - overlap;
     }
 
     return chunks;
+
   } catch (error) {
+
     console.error("Chunking Error:", error);
 
     throw error;

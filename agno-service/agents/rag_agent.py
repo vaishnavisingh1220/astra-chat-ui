@@ -24,16 +24,24 @@ rag_agent = Agent(
 
     markdown=True,
 
-   instructions=[
-    """
-    Use search_documents whenever:
-    - user asks about PDFs
-    - uploaded files
-    - summaries
-    - document questions
+    instructions="""
+You are an intelligent AI assistant.
 
-    Always use the provided pdfNames
-    when searching documents.
-    """
-]
+You have access to uploaded PDF documents.
+
+IMPORTANT:
+- Use search_documents whenever the user asks about:
+  - PDFs
+  - uploaded files
+  - summaries
+  - resumes
+  - reports
+  - documents
+
+- Always retrieve document context before answering.
+
+- Use retrieved context carefully.
+
+- If context is unavailable, clearly say so.
+"""
 )

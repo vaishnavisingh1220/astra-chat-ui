@@ -37,9 +37,22 @@ export const storeEmbeddings = async (
       return `${fileName}-${index}-${Date.now()}`;
     });
 
-    const metadatas = chunks.map(() => ({
-      source: fileName,
-    }));
+   const metadatas = chunks.map(
+  (chunk, index) => ({
+
+    source: fileName,
+
+    chunkIndex: index,
+
+    chunkLength: chunk.length,
+
+    uploadedAt:
+      new Date().toISOString(),
+
+    preview:
+      chunk.slice(0, 120),
+  })
+);
 
     collection.documents.push(...chunks);
     collection.embeddings.push(...embeddings);
@@ -111,18 +124,92 @@ export const searchSimilarChunks = async (
       }));
 
     // ✅ Sort best matches
-    const topResults = similarities
-      .sort(
-        (a, b) =>
-          b.similarity - a.similarity
-      )
-      .slice(0, topK);
+   const topResults = similarities
 
+  // ✅ remove weak matches
+  .filter((item) => item.similarity > 0.15)
+
+  // ✅ rerank using chunk quality
+  .map((item) => {
+
+    const chunk =
+      collection.documents[item.index];
+
+    const metadata =
+      collection.metadatas[item.index];
+
+    // ✅ boost meaningful chunks
+    let qualityScore =
+      item.similarity;
+
+    // Prefer medium-large chunks
+    if (metadata.chunkLength > 300) {
+      qualityScore += 0.05;
+    }
+
+    // Penalize tiny junk chunks
+    if (metadata.chunkLength < 100) {
+      qualityScore -= 0.15;
+    }
+
+    return {
+      ...item,
+      qualityScore,
+    };
+  })
+
+  // ✅ sort by improved score
+  .sort(
+    (a, b) =>
+      b.qualityScore - a.qualityScore
+  )
+
+  // ✅ reduce repetitive chunks
+  .filter((item, index, arr) => {
+
+    const currentChunk =
+      collection.documents[item.index];
+
+    return !arr
+      .slice(0, index)
+      .some((prev) => {
+
+        const prevChunk =
+          collection.documents[prev.index];
+
+        // crude overlap detection
+        return (
+          currentChunk.slice(0, 80) ===
+          prevChunk.slice(0, 80)
+        );
+      });
+  })
+
+  .slice(0, topK);
+  
     const resultDocuments =
-      topResults.map(
-        (r) =>
-          collection.documents[r.index]
-      );
+  topResults.map((r) => {
+
+    return collection.documents[r.index]
+
+      // cleanup whitespace
+      .replace(/\s+/g, " ")
+
+      // remove weird artifacts
+      .replace(/[^\x20-\x7E\n]/g, "")
+
+      .trim();
+  });
+
+  console.log("\n===== RETRIEVED CHUNKS =====");
+
+resultDocuments.forEach((doc, index) => {
+
+  console.log(
+    `\nRESULT ${index}:\n`,
+    doc
+  );
+});
 
     const resultMetadatas =
       topResults.map(

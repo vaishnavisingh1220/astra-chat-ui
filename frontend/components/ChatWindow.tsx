@@ -257,14 +257,7 @@ export default function ChatWindow() {
 
       setMessages((prev) => [...prev, userMessage]);
 
-      console.log("CURRENT selectedFiles:", selectedFiles);
-
       console.log("FINAL THREAD:", threadId);
-
-console.log(
-  "FINAL selectedFiles:",
-  selectedFiles
-);
 
       const res = await fetch(
         `${API_BASE}/api/chat/messages`,
@@ -276,12 +269,11 @@ console.log(
             Authorization: `Bearer ${token}`,
           },
 
-          body: JSON.stringify({
-            threadId: threadId,
-            text,
-            useRag: selectedFiles.length > 0,
-            pdfNames: selectedFiles,
-          }),
+         body: JSON.stringify({
+  threadId: threadId,
+  text,
+  pdfNames: selectedFiles,
+}),
         }
       );
 
