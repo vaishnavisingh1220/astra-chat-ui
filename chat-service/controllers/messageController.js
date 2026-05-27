@@ -68,12 +68,16 @@ export const sendMessage = async (req, res) => {
     }
 
     // 🔹 2. Fetch conversation history
-    const history = await Message.find({ threadId })
-      .sort({ createdAt: 1 })
-      .limit(20);
+   const history = await Message.find({
+  threadId,
+})
+  .sort({ createdAt: -1 })
+  .limit(15);
 
+  const orderedHistory =
+  history.reverse();
     // 🔹 Format history
-    const formattedHistory = history.map((msg) => ({
+    const formattedHistory = orderedHistory.map((msg) => ({
       role: msg.role,
       content: msg.content,
     }));

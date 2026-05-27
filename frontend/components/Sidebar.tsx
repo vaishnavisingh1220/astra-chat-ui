@@ -42,33 +42,65 @@ export default function Sidebar({
   const router = useRouter();
   
   // 🗑 DELETE THREAD
-  const handleDeleteThread = async (id: string) => {
-    try {
-      await fetch(`${API_BASE}/api/chat/threads/${id}`, {
-  method: "DELETE",
-});
-      router.refresh();
-    } catch (err) {
-      console.error(err);
+// 🗑 DELETE THREAD
+const handleDeleteThread = async (id: string) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `${API_BASE}/api/chat/threads/${id}`,
+      {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    const data = await response.json();
+
+    console.log("DELETE RESPONSE:", data);
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to delete thread");
     }
-  };
+
+    router.refresh();
+
+  } catch (err) {
+    console.error("DELETE THREAD ERROR:", err);
+  }
+};
 
   // ✏️ RENAME THREAD
-  const handleRename = async (id: string) => {
-    try {
-      await fetch(`${API_BASE}/api/chat/threads/${id}/rename`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: newTitle }),
-      });
+const handleRename = async (id: string) => {
+  try {
+    const token = localStorage.getItem("token");
 
-      setEditingId(null);
-      setNewTitle("");
-      router.refresh();
-    } catch (err) {
-      console.error(err);
+    const response = await fetch(
+      `${API_BASE}/api/chat/threads/${id}/rename`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: newTitle }),
+      }
+    );
+
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.message || "Failed to rename thread");
     }
-  };
+
+    setEditingId(null);
+    setNewTitle("");
+    router.refresh();
+  } catch (err) {
+    console.error("RENAME THREAD ERROR:", err);
+  }
+};
 
   const filteredThreads = threads.filter((t) =>
   (t.title || "").toLowerCase().includes(search.toLowerCase())
