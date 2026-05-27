@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from agents.rag_agent import rag_agent
 from tools.rag_tool import search_documents
+from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 
@@ -14,8 +15,8 @@ class ChatRequest(BaseModel):
     history: Optional[list] = []
 
 
-@app.post("/chat")
-async def chat(req: ChatRequest):
+@app.post("/chat-stream")
+async def chat_stream(req: ChatRequest):
 
     def document_tool(query: str):
 
@@ -54,8 +55,20 @@ Current User Message:
 {req.message}
 """
 
-    response = rag_agent.run(final_prompt)
+    async def generate():
 
-    return {
-        "response": response.content
-    }
+        response = rag_agent.run(final_prompt)
+
+        text = response.content
+
+        words = text.split()
+
+        for word in words:
+            yield word + " "
+
+   
+
+    return StreamingResponse(
+    generate(),
+    media_type="text/plain"
+)

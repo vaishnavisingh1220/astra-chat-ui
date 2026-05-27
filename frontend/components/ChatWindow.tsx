@@ -235,79 +235,142 @@ export default function ChatWindow() {
   // SEND MESSAGE
   // =========================
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim()) return;
+ const sendMessage = async (
+  text: string
+) => {
 
-    setIsTyping(true);
+  if (!text.trim()) return;
 
-    let threadId = activeThreadId;
+  setIsTyping(true);
 
-    try {
-      if (!threadId) {
-        threadId = await createThread();
-      }
+  let threadId = activeThreadId;
 
-      if (!threadId) return;
+  try {
 
-      const userMessage = {
-        _id: generateId(),
-        role: "user" as const,
-        content: text,
-      };
-
-      setMessages((prev) => [...prev, userMessage]);
-
-      console.log("FINAL THREAD:", threadId);
-
-      const res = await fetch(
-        `${API_BASE}/api/chat/messages`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-
-         body: JSON.stringify({
-  threadId: threadId,
-  text,
-  pdfNames: selectedFiles,
-}),
-        }
-      );
-
-      const data = await res.json();
-
-      const finalReply =
-        data?.data?.aiMessage?.content ||
-        "⚠️ No response generated";
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          _id: generateId(),
-          role: "assistant",
-          content: finalReply,
-        },
-      ]);
-
-      loadThreads();
-    } catch (err) {
-      console.error(err);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          _id: generateId(),
-          role: "assistant",
-          content: "⚠️ Failed to generate response",
-        },
-      ]);
-    } finally {
-      setIsTyping(false);
+    // ✅ Create thread if needed
+    if (!threadId) {
+      threadId = await createThread();
     }
-  };
+
+    if (!threadId) return;
+
+    // ✅ Add USER message instantly
+    const userMessage = {
+      _id: generateId(),
+      role: "user" as const,
+      content: text,
+    };
+
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+    ]);
+
+    console.log(
+      "FINAL THREAD:",
+      threadId
+    );
+
+    // ✅ Temporary AI message
+    const tempId = generateId();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: tempId,
+        role: "assistant",
+        content: "",
+      },
+    ]);
+
+    // ✅ Streaming request
+    const res = await fetch(
+      `${API_BASE}/api/chat/messages`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Authorization:
+            `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          threadId,
+          text,
+          pdfNames:
+            selectedFiles,
+        }),
+      }
+    );
+
+    // ✅ Read stream
+    const reader =
+      res.body?.getReader();
+
+    if (!reader) {
+      throw new Error(
+        "Streaming not supported"
+      );
+    }
+
+    const decoder =
+      new TextDecoder();
+
+    let finalReply = "";
+
+    while (true) {
+
+      const {
+        done,
+        value,
+      } = await reader.read();
+
+      if (done) break;
+
+      const chunk =
+        decoder.decode(value);
+
+      finalReply += chunk;
+
+      // ✅ Live UI update
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === tempId
+            ? {
+                ...msg,
+                content:
+                  finalReply,
+              }
+            : msg
+        )
+      );
+    }
+
+    // ✅ Reload sidebar threads
+    loadThreads();
+
+  } catch (err) {
+
+    console.error(err);
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        _id: generateId(),
+        role: "assistant",
+        content:
+          "⚠️ Failed to generate response",
+      },
+    ]);
+
+  } finally {
+
+    setIsTyping(false);
+  }
+};
 
   // =========================
   // PDF UPLOAD
