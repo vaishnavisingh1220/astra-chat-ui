@@ -1,36 +1,93 @@
 @import "tailwindcss";
 
+/* =========================
+   COLOR TOKENS
+========================= */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* LIGHT MODE */
+  --background: #F7F9FC;
+  --foreground: #111827;
+
+  --surface: #FFFFFF;
+  --card: #FFFFFF;
+
+  --border: #E5E7EB;
+
+  --primary: #6D5EF5;
+  --primary-hover: #7C6BFF;
+
+  --muted: #6B7280;
 }
+
+.dark {
+  /* DARK MODE */
+  --background: #0B1020;
+  --foreground: #F3F4F6;
+
+  --surface: #111827;
+  --card: #1A2236;
+
+  --border: #2B3548;
+
+  --primary: #7C5CFF;
+  --primary-hover: #9277FF;
+
+  --muted: #9CA3AF;
+}
+
+/* =========================
+   THEME MAPPING
+========================= */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+
+  --color-border: var(--border);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+
+  --color-muted: var(--muted);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
 
-.dark {
-  --background: #020617;
-  --foreground: #ededed;
+/* =========================
+   GLOBALS
+========================= */
+
+html,
+body {
+  overflow: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+
   font-family: Arial, Helvetica, sans-serif;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease;
 }
+
+/* =========================
+   ANIMATIONS
+========================= */
+
 @keyframes fadeInUp {
   from {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -41,22 +98,10 @@ body {
   animation: fadeInUp 0.3s ease forwards;
 }
 
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
+/* =========================
+   PROFESSIONAL SCROLLBAR
+========================= */
 
-.animate-fadeIn {
-  animation: fadeInUp 0.3s ease forwards;
-}
-
-/* 🌙 DARK SCROLLBAR */
 .custom-scroll::-webkit-scrollbar {
   width: 6px;
 }
@@ -66,20 +111,17 @@ body {
 }
 
 .custom-scroll::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 10px;
+  background: #334155;
+  border-radius: 999px;
 }
 
 .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #475569;
 }
 
 /* Firefox */
+
 .custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #1e293b transparent;
-}
-
-html, body {
-  overflow: hidden; /* stops double scroll */
+  scrollbar-color: #334155 transparent;
 }

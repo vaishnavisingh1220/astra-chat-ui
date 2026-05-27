@@ -421,129 +421,175 @@ export default function ChatWindow() {
     setMessages([]);
   };
 
-  return (
-    <div
-      className={`flex h-screen ${
-        darkMode
-          ? "bg-[#020617] text-white"
-          : "bg-gray-100 text-black"
-      }`}
-    >
-      {/* SIDEBAR */}
+ return (
+  <div
+    className={`flex h-screen transition-colors duration-300 ${
+      darkMode
+        ? "bg-[#0B1020] text-[#F3F4F6]"
+        : "bg-[#F7F9FC] text-[#111827]"
+    }`}
+  >
+    {/* SIDEBAR */}
 
-      <Sidebar
-        collapsed={collapsed}
-        setCollapsed={setCollapsed}
-        darkMode={darkMode}
-        threads={threads}
-        activeThreadId={activeThreadId}
-        onThreadClick={loadThreadMessages}
-        onNewChat={createThread}
-        onClear={handleClear}
+    <Sidebar
+      collapsed={collapsed}
+      setCollapsed={setCollapsed}
+      darkMode={darkMode}
+      threads={threads}
+      activeThreadId={activeThreadId}
+      onThreadClick={loadThreadMessages}
+      onNewChat={createThread}
+      onClear={handleClear}
+    />
+
+    {/* SOUND */}
+
+    <audio ref={audioRef}>
+      <source
+        src="/notification.mp3"
+        type="audio/mpeg"
       />
+    </audio>
 
-      {/* SOUND */}
+    {/* MAIN */}
 
-      <audio ref={audioRef}>
-        <source
-          src="/notification.mp3"
-          type="audio/mpeg"
-        />
-      </audio>
+    <div className="flex flex-col flex-1">
+      
+      {/* TOP BAR */}
 
-      {/* MAIN */}
+      <div
+        className={`w-full flex justify-between items-center px-6 py-4 border-b backdrop-blur-sm
+        ${
+          darkMode
+            ? "border-[#2B3548] bg-[#111827]/80"
+            : "border-[#E5E7EB] bg-white/80"
+        }`}
+      >
+        <h1
+          className={`text-xl font-semibold tracking-wide ${
+            darkMode
+              ? "text-[#F3F4F6]"
+              : "text-[#111827]"
+          }`}
+        >
+          Astra AI ✨
+        </h1>
 
-      <div className="flex flex-col flex-1">
-        {/* TOP BAR */}
+        <div className="flex items-center gap-3">
 
-        <div className="w-full flex justify-between items-center p-4 border-b border-white/10">
-          <h1 className="text-xl font-semibold">
+          {/* Theme Toggle */}
+
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200
+            ${
+              darkMode
+                ? "bg-[#1A2236] hover:bg-[#202A40] border border-[#2B3548]"
+                : "bg-white hover:bg-[#F3F4F6] border border-[#E5E7EB]"
+            }`}
+          >
+            {darkMode ? "🌙" : "☀️"}
+          </button>
+        </div>
+      </div>
+
+      {/* EMPTY STATE */}
+
+      {messages.length === 0 ? (
+        <div className="flex flex-col items-center justify-center flex-1 text-center px-4">
+
+          <Image
+            src="/astra-avatar.png"
+            alt="Astra"
+            width={88}
+            height={88}
+            className={`rounded-full mb-5 border shadow-lg
+            ${
+              darkMode
+                ? "border-[#2B3548]"
+                : "border-[#E5E7EB]"
+            }`}
+          />
+
+          <h1
+            className={`text-4xl font-bold tracking-tight ${
+              darkMode
+                ? "text-[#F3F4F6]"
+                : "text-[#111827]"
+            }`}
+          >
             Astra AI ✨
           </h1>
 
-          <div className="flex items-center gap-3">
-            
-          
+          <p
+            className={`mt-3 text-sm ${
+              darkMode
+                ? "text-[#9CA3AF]"
+                : "text-[#6B7280]"
+            }`}
+          >
+            Upload PDFs and ask intelligent questions
+          </p>
 
-            {/* Theme */}
-
-            <button
-              onClick={() =>
-                setDarkMode(!darkMode)
-              }
-              className="w-10 h-10 rounded-full bg-white/10"
-            >
-              {darkMode ? "🌙" : "☀️"}
-            </button>
+          <div className="mt-8 w-full max-w-2xl">
+            <ChatInput
+              onSend={sendMessage}
+              darkMode={darkMode}
+              model={model}
+              setModel={setModel}
+              onFilesSelected={handlePDFUpload}
+              attachedFiles={selectedFiles}
+              setAttachedFiles={setSelectedFiles}
+            />
           </div>
         </div>
+      ) : (
+        <>
+          {/* MESSAGES */}
 
-        {/* EMPTY */}
-
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center flex-1 text-center px-4">
-            <Image
-              src="/astra-avatar.png"
-              alt="Astra"
-              width={80}
-              height={80}
-              className="rounded-full mb-4"
-            />
-
-            <h1 className="text-3xl font-bold">
-              Astra AI ✨
-            </h1>
-
-            <p className="text-gray-400 mt-2">
-              Upload PDFs and ask questions
-            </p>
-
-            <div className="mt-6 w-full max-w-2xl">
-              <ChatInput
-                onSend={sendMessage}
+          <div
+            className={`flex-1 overflow-y-auto p-6 flex flex-col gap-4 custom-scroll
+            ${
+              darkMode
+                ? "bg-[#0B1020]"
+                : "bg-[#F7F9FC]"
+            }`}
+          >
+            {messages.map((msg, index) => (
+              <Message
+                key={msg._id || index}
+                msg={msg}
                 darkMode={darkMode}
-                model={model}
-                setModel={setModel}
-                onFilesSelected={handlePDFUpload}
-                attachedFiles={selectedFiles}
-                setAttachedFiles={setSelectedFiles}
               />
-            </div>
+            ))}
 
+            {isTyping && <TypingIndicator />}
+
+            <div ref={bottomRef} />
           </div>
-        ) : (
-          <>
-            {/* MESSAGES */}
 
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
-              {messages.map((msg, index) => (
-                <Message
-                  key={msg._id || index}
-                  msg={msg}
-                  darkMode={darkMode}
-                />
-              ))}
+          {/* INPUT */}
 
-              {isTyping && <TypingIndicator />}
-
-              <div ref={bottomRef} />
-            </div>
-
-            {/* INPUT */}
-
-            <div className="p-4 border-t border-white/10">
-              <ChatInput
-                onSend={sendMessage}
-                darkMode={darkMode}
-                model={model}
-                setModel={setModel}
-                attachedFiles={selectedFiles}
-                setAttachedFiles={setSelectedFiles}
-              />
-            </div>
-          </>
-        )}
-      </div>
+          <div
+            className={`p-4 border-t backdrop-blur-sm
+            ${
+              darkMode
+                ? "border-[#2B3548] bg-[#111827]/80"
+                : "border-[#E5E7EB] bg-white/80"
+            }`}
+          >
+            <ChatInput
+              onSend={sendMessage}
+              darkMode={darkMode}
+              model={model}
+              setModel={setModel}
+              attachedFiles={selectedFiles}
+              setAttachedFiles={setSelectedFiles}
+            />
+          </div>
+        </>
+      )}
     </div>
-  );
+  </div>
+);
 }
